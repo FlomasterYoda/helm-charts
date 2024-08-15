@@ -50,8 +50,21 @@ spec:
             {{- include "common.labels" $labels | nindent  12 }}
             cron: {{ $job.name }}
         spec:
+          {{- if $job.nodeSelector }}
+          {{- with $job.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- else }}
+          nodeSelector:
+            node-role.kubernetes.io: nodes
+          {{- end }}        
           imagePullSecrets:
           - name: {{ $job.image.pullSecret | default $.Values.image.pullSecret }}
+          {{- if $job.dnsConfig }} 
+          dnsConfig:
+          {{- toYaml $job.dnsConfig | nindent 12 }}
+          {{- end }}
         {{- if $job.useServiceAccount }}
           serviceAccountName: {{ $serviceAccount.name | default $defaults.serviceAccount.name }}
         {{- end }}
@@ -96,15 +109,6 @@ spec:
               {{- end }}
             {{- end }}
 
-          {{- if $job.nodeSelector }}
-          {{- with $job.nodeSelector }}
-          nodeSelector:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- else }}
-          nodeSelector:
-            node-role.kubernetes.io: nodes
-          {{- end }}
           {{- with $job.affinity }}
           affinity:
             {{- toYaml . | nindent 12 }}
@@ -130,4 +134,7 @@ spec:
 
   schedule: {{ $job.schedule | quote }}
   successfulJobsHistoryLimit: {{ $job.successfulJobsHistoryLimit | default $defaults.successfulJobsHistoryLimit }}
+  {{- if $job.suspend }} 
+  suspend: {{ $job.suspend }} 
+  {{- end }}
 {{- end }}

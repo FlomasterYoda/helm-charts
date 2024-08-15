@@ -63,8 +63,8 @@ spec:
     - name: "port-{{ $portMapIndex }}"
     {{- end }}
       port: {{ $portMap.port }}
-      {{- if $portMap.containerPort }}
-      targetPort: {{ $portMap.containerPort }}
+      {{- if $portMap.targetPort }}
+      targetPort: {{ $portMap.targetPort }}
       {{- else }}
       targetPort: {{ $portMap.port }}
       {{- end }}
