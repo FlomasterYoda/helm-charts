@@ -2,23 +2,23 @@ apiVersion: v1
 entries:
   common-chart:
   - apiVersion: v2
-    created: "2024-08-15T21:50:11.9292718+03:00"
+    created: "2024-08-15T21:54:34.013105425+03:00"
     description: A general purpose helm chart for deploying components of an application
     digest: a19169139956905a5e3f22170ebe1b07a58ff42d074b1a15bd90b02166350c06
     home: https://github.com/FlomasterYoda/common-chart.git
     name: common-chart
     type: application
     urls:
-    - https://github.com/FlomasterYoda/common-chart.git/packages/common-chart-0.0.2.tgz
+    - https://flomasteryoda.github.io/helm-charts/packages/common-chart-0.0.2.tgz
     version: 0.0.2
   - apiVersion: v2
-    created: "2024-08-15T21:50:11.928009761+03:00"
+    created: "2024-08-15T21:54:34.011006264+03:00"
     description: A general purpose helm chart for deploying components of an application
     digest: 61f482ea62d2efeb5e628efb74a04bc01828692b27e2e880875ab206d56b0632
     home: https://github.com/FlomasterYoda/common-chart.git
     name: common-chart
     type: application
     urls:
-    - https://github.com/FlomasterYoda/common-chart.git/packages/common-chart-0.0.1.tgz
+    - https://flomasteryoda.github.io/helm-charts/packages/common-chart-0.0.1.tgz
     version: 0.0.1
-generated: "2024-08-15T21:50:11.927147915+03:00"
+generated: "2024-08-15T21:54:34.009150221+03:00"
