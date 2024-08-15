@@ -1,0 +1,106 @@
+#### Common Helm Chart ####
+name: app
+labels:
+  application: "app"
+  environment-type: "qa"
+  team: "devops"
+  domain: "shared"
+  product: "shared"
+  sensitive-data: false
+  owneremail: "devops-email.com"
+
+image:
+  repository: "111111111111.dkr.ecr.us-west-2.amazonaws.com/app-repo"
+  version: "1.11.1-11111111"
+  pullPolicy: IfNotPresent
+  pullSecret: dockerkey
+
+jobs: {}
+
+deployments: {}
+
+data: {}
+
+volumes: {}
+
+serviceAccounts: {}
+
+secrets: {}
+
+
+deploymentDefaults:
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2500Mi
+    requests:
+      cpu: 1000m
+      memory: 1500Mi
+  readinessProbe:
+    httpGet:
+      path: /readiness
+      port: 80
+      scheme: HTTP
+    initialDelaySeconds: 10
+    timeoutSeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+  livenessProbe:
+    httpGet:
+      path: /liveness
+      port: 80
+      scheme: HTTP
+    initialDelaySeconds: 10
+    timeoutSeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+  env:
+    - name: NODE_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: DD_AGENT_HOST
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+  envFrom:
+    - configMapRef:
+        name: ui-app
+
+cronJobDefaults:
+  image:
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: "200m"
+      memory: 250Mi
+    requests:
+      cpu: "150m"
+      memory: 150Mi
+  serviceAccount: 
+    name: ms-ssense
+  securityContext: {}
+
+  failedJobsHistoryLimit: 5
+  successfulJobsHistoryLimit: 5
+  concurrencyPolicy: Forbid
+  suspend: true
+  restartPolicy: OnFailure
+  affinity: []
+  nodeSelector:
+    node-role.kubernetes.io: nodes
+  volumes: {}
+  env:
+    - name: NODE_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: DD_AGENT_HOST
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+  envFrom:
+    - configMapRef:
+        name: central-env

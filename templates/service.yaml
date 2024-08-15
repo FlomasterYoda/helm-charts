@@ -1,0 +1,83 @@
+{{- $labels := .Values.labels -}}
+{{- range $deploymentsIndex, $deployments := .Values.deployments }}
+{{- if $deployments.service }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $deployments.service.name }}
+  labels:
+    {{- include "common.labels" $labels | nindent 4 }}
+  annotations:
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- range $annotationName, $annotationValue := $deployments.service.annotations }}
+    {{ $annotationName }}: {{ $annotationValue }}
+    {{- end }}
+spec:
+  {{- if $deployments.service.clusterIP }}
+  clusterIP: {{ $deployments.service.clusterIP }}
+  {{- end }}
+  {{- if $deployments.service.externalIPs }}
+  externalIPs:
+    {{- range $externalIPIndex, $externalIP := $deployments.service.externalIPs }}
+    - {{ $externalIP }}
+    {{- end }}
+    {{- end }}
+  {{- if $deployments.service.externalName }}
+  externalName: {{ $deployments.service.externalName }}
+  {{- end }}
+  {{- if $deployments.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ $deployments.service.externalTrafficPolicy }}
+  {{- end }}
+  {{- if $deployments.service.healthCheckNodePort }}
+  healthCheckNodePort: {{ $deployments.service.healthCheckNodePort }}
+  {{- end }}
+  {{- if $deployments.service.ipFamily }}
+  ipFamily: {{ $deployments.service.ipFamily }}
+  {{- end }}
+  {{- if $deployments.service.loadBalancerIP }}
+  loadBalancerIP: {{ $deployments.service.loadBalancerIP }}
+  {{- end }}
+  {{- if $deployments.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+{{ toYaml $deployments.service.loadBalancerSourceRanges | indent 4 }}
+  {{- end }}
+  {{- if $deployments.service.publishNotReadyAddresses }}
+  publishNotReadyAddresses: {{ $deployments.service.publishNotReadyAddresses }}
+  {{- end }}
+  {{- if $deployments.service.sessionAffinity }}
+  sessionAffinity: {{ $deployments.service.sessionAffinity }}
+  {{- end }}
+  {{- if $deployments.service.sessionAffinityConfig }}
+  sessionAffinityConfig:
+{{ toYaml $deployments.service.sessionAffinityConfig | indent 4 }}
+  {{- end }}
+  {{- if $deployments.service.topologyKeys }}
+  topologyKeys:
+{{ toYaml $deployments.service.topologyKeys | indent 4 }}
+  {{- end }}
+  ports:
+    {{- range $portMapIndex, $portMap := $deployments.service.ports }}
+    {{- if $portMap.name }}
+    - name: {{ $portMap.name }}
+    {{- else }}
+    - name: "port-{{ $portMapIndex }}"
+    {{- end }}
+      port: {{ $portMap.port }}
+      {{- if $portMap.containerPort }}
+      targetPort: {{ $portMap.containerPort }}
+      {{- else }}
+      targetPort: {{ $portMap.port }}
+      {{- end }}
+      {{- if $portMap.nodePort }}
+      nodePort: {{ $portMap.nodePort }}
+      {{- end }}
+      protocol: {{ $portMap.protocol | default "TCP" }}
+    {{- end }}
+  selector:
+    {{- with $deployments.service.selector -}}
+    {{ toYaml . | nindent 4 }}
+    {{- end }}
+  type: {{ $deployments.service.type | default "ClusterIP" }}
+---
+{{- end }}
+{{- end }}

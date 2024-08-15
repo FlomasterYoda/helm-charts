@@ -1,0 +1,21 @@
+{{- if .Values.data }}
+{{- $labels := .Values.labels -}}
+{{- $name := .Values.name -}}
+{{- range $configmapsIndex, $configmaps := .Values.data }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+{{- if eq $name $configmaps.name }}
+  name: {{ $configmaps.name }}
+{{- else }}
+  name: {{ $name }}-{{ $configmaps.name }}
+{{- end }}
+  labels:
+    {{- include "common.labels" $labels | nindent 4 }}
+data:
+  {{- with $configmaps.configmaps -}}
+  {{ toYaml . | nindent 2 }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}
