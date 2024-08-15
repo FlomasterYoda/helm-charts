@@ -11,10 +11,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $container.name | quote }}
+  name: {{ $container.name }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
-    app: {{ $container.name | quote }}
+    app: {{ $container.name }}
   annotations:
     "helm.sh/chart": "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
     {{- range $annotationName, $annotationValue := $deployments.annotations }}
@@ -39,14 +39,14 @@ spec:
     {{- end }}
   selector:
     matchLabels:
-      app: {{ $container.name | quote }}
+      app: {{ $container.name  }}
       {{- range $labelName, $labelValue := $deployments.labels }}
       {{ $labelName | quote }}: {{ $labelValue | quote }}
       {{- end }}
   template:
     metadata:
       labels:
-        {{- include "common.labels" $labels | nindent  8 }}
+        {{- include "common.labels" $labels | nindent 8 }}
         {{- range $labelName, $labelValue := $deployments.labels }}
         {{ $labelName | quote }}: {{ $labelValue | quote }}
         {{- end }}
@@ -56,9 +56,313 @@ spec:
         {{ $annotationName | quote }}: {{ $annotationValue | quote }}
         {{- end }}
     spec:
+{{- /*            Containers            */}}      
+      containers:
+        {{- range $containerIndex, $container := $deployments.containers }}
+          {{- if $container.name }}
+        - name: {{ $container.name }}
+          {{- else }}
+        - name: "container-{{ $containerIndex }}"
+          {{- end }}
+          image: {{ $image_name }}:{{ $image_version }}
+          imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
+          {{- if $container.ports }}          
+          ports:
+{{ toYaml $container.ports | indent 12 }}
+          {{- end }}
+          {{- if $container.workingDir }}
+          workingDir: {{ $container.workingDir }}
+          {{- end }}
+          {{- if $container.stdin }}
+          stdin: {{ $container.stdin }}
+          {{- end }}
+          {{- if $container.stdinOnce }}
+          stdinOnce: {{ $container.stdinOnce }}
+          {{- end }}
+          {{- if $container.tty }}
+          tty: {{ $container.tty }}
+          {{- end }}
+          {{- if $container.command }} 
+          command:
+            {{- range $commandIndex, $command := $container.command }}
+            - {{ $command | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.args }} 
+          args:
+            {{- range $argIndex, $arg := $container.args }}
+            - {{ $arg | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.terminationMessagePath }}
+          terminationMessagePath: {{ $container.terminationMessagePath }}
+          {{- end }}
+          {{- if $container.terminationMessagePolicy }}
+          terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
+          {{- end }}
+          {{- if $container.securityContext }} 
+          securityContext:
+          {{- range $key, $value := $container.securityContext }}
+            {{ $key }}: {{ $value }}
+          {{- end }}
+          {{- end }}
+          env:
+          {{- $env := $container.env }}
+          {{- if $container.useDefaultEnvs }}
+            {{- $env = $defaults.env }}
+          {{- end }}
+          
+          {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
+          {{- if $container.useExternalSecrets }}
+            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
+          {{- end }}
+
+          {{- $envFrom := $container.envFrom }}
+          {{- if $container.useDefaultEnvsFrom }}
+            {{- $envFrom = $defaults.envFrom }}
+          {{- end }}
+          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
+          {{- if $container.lifecycle }} 
+          lifecycle:
+{{ toYaml $container.lifecycle | indent 12 }}
+          {{- end }}
+          {{- if $container.livenessProbe }} 
+          livenessProbe:
+{{ toYaml $container.livenessProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.readinessProbe }}
+          readinessProbe:
+{{ toYaml $container.readinessProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.startupProbe }}
+          startupProbe:
+{{ toYaml $container.startupProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.volumeDevices }}
+          volumeDevices:
+{{ toYaml $container.volumeDevices | indent 12 }}
+          {{- end }}
+          {{- $volumeMounts := $container.volumeMounts }}
+          {{- if $container.useDefaultVolumes }}
+            {{- $volumeMounts = $defaults.volumeMounts }}
+          {{- end }}
+          {{- if $volumeMounts }}
+          volumeMounts:
+            {{- range $volume := $volumeMounts }}
+            - name: {{ $volume.name }}
+              mountPath: {{ $volume.mountPath }}
+              {{- if $volume.subPath }}
+              subPath: {{ trimAll "/" $volume.subPath | default "" | quote }}
+              {{- end }}
+              {{- if $volume.readOnly }}
+              readOnly: {{ $volume.readOnly | default false }}
+              {{- end }}              
+            {{- end }}
+          {{- end }}
+          {{- if $container.resources }}
+          resources:
+            {{- with $container.resources.limits }}
+            limits:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if $container.resources.requests }}
+            {{- with $container.resources.requests }}
+            requests:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.cpu }}
+              cpu: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.memory }}
+              memory: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.ephemeralStorage }}
+              ephemeral-storage: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+{{- /*            InitContainers            */}}
+      {{- if $deployments.initContainers }}
+      initContainers:
+        {{- range $containerIndex, $container := $deployments.initContainers }}
+          {{- if $container.name }}
+          - name: {{ $container.name }}
+          {{- else }}
+          - name: "container-{{ $containerIndex }}"
+          {{- end }}
+          image: {{ $container.image.repository }}:{{ $container.image.version }}
+          imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
+          {{- if $container.ports }}          
+          ports:
+{{ toYaml $container.ports | indent 12 }}
+          {{- end }}
+          {{- if $container.workingDir }}
+          workingDir: {{ $container.workingDir }}
+          {{- end }}
+          {{- if $container.stdin }}
+          stdin: {{ $container.stdin }}
+          {{- end }}
+          {{- if $container.stdinOnce }}
+          stdinOnce: {{ $container.stdinOnce }}
+          {{- end }}
+          {{- if $container.tty }}
+          tty: {{ $container.tty }}
+          {{- end }}
+          {{- if $container.command }} 
+          command:
+            {{- range $commandIndex, $command := $container.command }}
+            - {{ $command | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.args }} 
+          args:
+            {{- range $argIndex, $arg := $container.args }}
+            - {{ $arg | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.terminationMessagePath }}
+          terminationMessagePath: {{ $container.terminationMessagePath }}
+          {{- end }}
+          {{- if $container.terminationMessagePolicy }}
+          terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
+          {{- end }}
+          {{- if $container.securityContext }} 
+          securityContext:
+          {{- range $key, $value := $container.securityContext }}
+            {{ $key }}: {{ $value }}
+          {{- end }}
+          {{- end }}
+          env:
+          {{- $env := $container.env }}
+          {{- if $container.useDefaultEnvs }}
+            {{- $env = $defaults.env }}
+          {{- end }}
+          {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
+
+          {{- if $container.useExternalSecrets }}
+          {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
+          {{- end }}
+
+          {{- $envFrom := $container.envFrom }}
+          {{- if $container.useDefaultEnvsFrom }}
+            {{- $envFrom = $defaults.envFrom }}
+          {{- end }}
+          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
+          {{- if $container.lifecycle }} 
+          lifecycle:
+{{ toYaml $container.lifecycle | indent 12 }}
+          {{- end }}
+          {{- if $container.livenessProbe }} 
+          livenessProbe:
+{{ toYaml $container.livenessProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.readinessProbe }}
+          readinessProbe:
+{{ toYaml $container.readinessProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.startupProbe }}
+          startupProbe:
+{{ toYaml $container.startupProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.volumeDevices }}
+          volumeDevices:
+{{ toYaml $container.volumeDevices | indent 12 }}
+          {{- end }}
+          {{- $volumeMounts := $container.volumeMounts }}
+          {{- if $container.useDefaultVolumes }}
+            {{- $volumeMounts = $defaults.volumeMounts }}
+          {{- end }}
+          {{- if $volumeMounts }}
+          volumeMounts:
+            {{- range $volume := $volumeMounts }}
+            - name: {{ $volume.name }}
+              mountPath: {{ $volume.mountPath }}
+              {{- if $volume.subPath }}
+              subPath: {{ trimAll "/" $volume.subPath | default "" | quote }}
+              {{- end }}
+              {{- if $volume.readOnly }}
+              readOnly: {{ $volume.readOnly | default false }}
+              {{- end }}              
+            {{- end }}
+          {{- end }}
+          {{- if $container.resources }}
+          resources:
+            {{- with $container.resources.limits }}
+            limits:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if $container.resources.requests }}
+            {{- with $container.resources.requests }}
+            requests:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.cpu }}
+              cpu: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.memory }}
+              memory: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.ephemeralStorage }}
+              ephemeral-storage: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
       imagePullSecrets:
         {{- range $secretIndex, $secretName := $deployments.pullSecrets }}
-        - name: {{ $secretName | quote }}
+        - name: {{ $secretName }}
         {{- end }}
       {{- if $deployments.nodeSelector }}  
       nodeSelector:
@@ -168,296 +472,11 @@ spec:
       {{- else }}
       terminationGracePeriodSeconds: 30
       {{- end }}
-{{- /*            Containers            */}}      
-      containers:
-        {{- range $containerIndex, $container := $deployments.containers }}
-        - image: {{ $image_name }}:{{ $image_version }}
-          {{- if $container.name }}
-          name: {{ $container.name | quote }}
-          {{- else }}
-          name: "container-{{ $containerIndex }}"
-          {{- end }}
-          imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
-          {{- if $container.ports }}          
-          ports:
-{{ toYaml $container.ports | indent 12 }}
-          {{- end }}
-          {{- if $container.workingDir }}
-          workingDir: {{ $container.workingDir }}
-          {{- end }}
-          {{- if $container.stdin }}
-          stdin: {{ $container.stdin }}
-          {{- end }}
-          {{- if $container.stdinOnce }}
-          stdinOnce: {{ $container.stdinOnce }}
-          {{- end }}
-          {{- if $container.tty }}
-          tty: {{ $container.tty }}
-          {{- end }}
-          {{- if $container.command }} 
-          command:
-            {{- range $commandIndex, $command := $container.command }}
-            - {{ $command | quote }}
-            {{- end }}
-          {{- end }}  
-          {{- if $container.args }} 
-          args:
-            {{- range $argIndex, $arg := $container.args }}
-            - {{ $arg | quote }}
-            {{- end }}
-          {{- end }}  
-          {{- if $container.terminationMessagePath }}
-          terminationMessagePath: {{ $container.terminationMessagePath }}
-          {{- end }}
-          {{- if $container.terminationMessagePolicy }}
-          terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
-          {{- end }}
-          env:
-          {{- $env := $container.env }}
-          {{- if $container.useDefaultEnvs }}
-            {{- $env = $defaults.env }}
-          {{- end }}
-          
-          {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
-          {{- if $container.useExternalSecrets }}
-            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
-          {{- end }}
-
-          {{- $envFrom := $container.envFrom }}
-          {{- if $container.useDefaultEnvsFrom }}
-            {{- $envFrom = $defaults.envFrom }}
-          {{- end }}
-          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
-          {{- if $container.lifecycle }} 
-          lifecycle:
-{{ toYaml $container.lifecycle | indent 12 }}
-          {{- end }}
-          {{- if $container.livenessProbe }} 
-          livenessProbe:
-{{ toYaml $container.livenessProbe | indent 12 }}
-          {{- end }}
-          {{- if $container.readinessProbe }}
-          readinessProbe:
-{{ toYaml $container.readinessProbe | indent 12 }}
-          {{- end }}
-          {{- if $container.startupProbe }}
-          startupProbe:
-{{ toYaml $container.startupProbe | indent 12 }}
-          {{- end }}
-          {{- if $container.volumeDevices }}
-          volumeDevices:
-{{ toYaml $container.volumeDevices | indent 12 }}
-          {{- end }}
-          {{- $volumeMounts := $container.volumeMounts }}
-          {{- if $container.useDefaultVolumes }}
-            {{- $volumeMounts = $container.volumeMounts }}
-          {{- end }}
-          {{- if $volumeMounts }}
-          volumeMounts:
-            {{- range $volume := $volumeMounts }}
-            - name: {{ $volume.name }}
-              mountPath: {{ $volume.mountPath }}
-              {{- if $volume.subPath }}
-              subPath: {{ trimAll "/" $volume.subPath | default "" | quote }}
-              {{- end }}
-              {{- if $volume.readOnly }}
-              readOnly: {{ $volume.readOnly | default false }}
-              {{- end }}              
-            {{- end }}
-          {{- end }}
-          {{- if $container.resources }}
-          resources:
-            {{- with $container.resources.limits }}
-            limits:
-              {{- if .cpu }}
-              cpu: {{ .cpu | quote }}
-              {{- end }}
-              {{- if .memory }}
-              memory: {{ .memory | quote }}
-              {{- end }}
-              {{- if .ephemeralStorage }}
-              ephemeral-storage: {{ .ephemeralStorage | quote }}
-              {{- end }}
-            {{- end }}
-            {{- if $container.resources.requests }}
-            {{- with $container.resources.requests }}
-            requests:
-              {{- if .cpu }}
-              cpu: {{ .cpu | quote }}
-              {{- else }}
-              {{- if $container.resources.limits }}
-              {{- if $container.resources.limits.cpu }}
-              cpu: "0"
-              {{- end }}
-              {{- end }}
-              {{- end }}
-              {{- if .memory }}
-              memory: {{ .memory | quote }}
-              {{- else }}
-              {{- if $container.resources.limits }}
-              {{- if $container.resources.limits.memory }}
-              memory: "0"
-              {{- end }}
-              {{- end }}
-              {{- end }}
-              {{- if .ephemeralStorage }}
-              ephemeral-storage: {{ .ephemeralStorage | quote }}
-              {{- else }}
-              {{- if $container.resources.limits }}
-              {{- if $container.resources.limits.ephemeralStorage }}
-              ephemeral-storage: "0"
-              {{- end }}
-              {{- end }}
-              {{- end }}
-            {{- end }}
-            {{- end }}
-          {{- end }}
-        {{- end }}
-{{- /*            InitContainers            */}}        
-      initContainers:
-       {{- range $containerIndex, $container := $deployments.initContainers }}
-        - image: {{ $container.image.repository }}:{{ $container.image.version }}
-          {{- if $container.name }}
-          name: {{ $container.name | quote }}
-          {{- else }}
-          name: "container-{{ $containerIndex }}"
-          {{- end }}
-          imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
-          {{- if $container.ports }}          
-          ports:
-{{ toYaml $container.ports | indent 12 }}
-          {{- end }}
-          {{- if $container.workingDir }}
-          workingDir: {{ $container.workingDir }}
-          {{- end }}
-          {{- if $container.stdin }}
-          stdin: {{ $container.stdin }}
-          {{- end }}
-          {{- if $container.stdinOnce }}
-          stdinOnce: {{ $container.stdinOnce }}
-          {{- end }}
-          {{- if $container.tty }}
-          tty: {{ $container.tty }}
-          {{- end }}
-          {{- if $container.command }} 
-          command:
-            {{- range $commandIndex, $command := $container.command }}
-            - {{ $command | quote }}
-            {{- end }}
-          {{- end }}  
-          {{- if $container.args }} 
-          args:
-            {{- range $argIndex, $arg := $container.args }}
-            - {{ $arg | quote }}
-            {{- end }}
-          {{- end }}  
-          {{- if $container.terminationMessagePath }}
-          terminationMessagePath: {{ $container.terminationMessagePath }}
-          {{- end }}
-          {{- if $container.terminationMessagePolicy }}
-          terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
-          {{- end }}
-          env:
-          {{- $env := $container.env }}
-          {{- if $container.useDefaultEnvs }}
-            {{- $env = $defaults.env }}
-          {{- end }}
-          {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
-
-          {{- if $container.useExternalSecrets }}
-          {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
-          {{- end }}
-
-          {{- $envFrom := $container.envFrom }}
-          {{- if $container.useDefaultEnvsFrom }}
-            {{- $envFrom = $defaults.envFrom }}
-          {{- end }}
-          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
-          {{- if $container.lifecycle }} 
-          lifecycle:
-{{ toYaml $container.lifecycle | indent 12 }}
-          {{- end }}
-          {{- if $container.livenessProbe }} 
-          livenessProbe:
-{{ toYaml $container.livenessProbe | indent 12 }}
-          {{- end }}
-          {{- if $container.readinessProbe }}
-          readinessProbe:
-{{ toYaml $container.readinessProbe | indent 12 }}
-          {{- end }}
-          {{- if $container.startupProbe }}
-          startupProbe:
-{{ toYaml $container.startupProbe | indent 12 }}
-          {{- end }}
-          {{- if $container.volumeDevices }}
-          volumeDevices:
-{{ toYaml $container.volumeDevices | indent 12 }}
-          {{- end }}
-          {{- $volumeMounts := $container.volumeMounts }}
-          {{- if $container.useDefaultVolumes }}
-            {{- $volumeMounts = $container.volumeMounts }}
-          {{- end }}
-          {{- if $volumeMounts }}
-          volumeMounts:
-            {{- range $volume := $volumeMounts }}
-            - name: {{ $volume.name }}
-              mountPath: {{ $volume.mountPath }}
-              {{- if $volume.subPath }}
-              subPath: {{ trimAll "/" $volume.subPath | default "" | quote }}
-              {{- end }}
-              {{- if $volume.readOnly }}
-              readOnly: {{ $volume.readOnly | default false }}
-              {{- end }}              
-            {{- end }}
-          {{- end }}
-          {{- if $container.resources }}
-          resources:
-            {{- with $container.resources.limits }}
-            limits:
-              {{- if .cpu }}
-              cpu: {{ .cpu | quote }}
-              {{- end }}
-              {{- if .memory }}
-              memory: {{ .memory | quote }}
-              {{- end }}
-              {{- if .ephemeralStorage }}
-              ephemeral-storage: {{ .ephemeralStorage | quote }}
-              {{- end }}
-            {{- end }}
-            {{- if $container.resources.requests }}
-            {{- with $container.resources.requests }}
-            requests:
-              {{- if .cpu }}
-              cpu: {{ .cpu | quote }}
-              {{- else }}
-              {{- if $container.resources.limits }}
-              {{- if $container.resources.limits.cpu }}
-              cpu: "0"
-              {{- end }}
-              {{- end }}
-              {{- end }}
-              {{- if .memory }}
-              memory: {{ .memory | quote }}
-              {{- else }}
-              {{- if $container.resources.limits }}
-              {{- if $container.resources.limits.memory }}
-              memory: "0"
-              {{- end }}
-              {{- end }}
-              {{- end }}
-              {{- if .ephemeralStorage }}
-              ephemeral-storage: {{ .ephemeralStorage | quote }}
-              {{- else }}
-              {{- if $container.resources.limits }}
-              {{- if $container.resources.limits.ephemeralStorage }}
-              ephemeral-storage: "0"
-              {{- end }}
-              {{- end }}
-              {{- end }}
-            {{- end }}
-            {{- end }}
-          {{- end }}
-        {{- end }}
+      {{- $volumeEnabled := $container.volumeMounts }}
+      {{- if $container.useDefaultVolumes }}
+        {{- $volumeEnabled = $defaults.volumeMounts }}
+      {{- end }}
+      {{- if $volumeEnabled }}
       volumes:
 {{- /*             Containers             */}}
         {{- range $volumeIndex, $volume := $volumes }}
@@ -487,6 +506,7 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
+      {{- end }}
 ---
 {{- end }}
 {{- end }}
