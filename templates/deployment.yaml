@@ -11,10 +11,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $container.name }}
+  name: {{ $deployments.name }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
-    app: {{ $container.name }}
+    app: {{ $deployments.name }}
+    {{- range $labelName, $labelValue := $deployments.labels }}
+    {{ $labelName | quote }}: {{ $labelValue | quote }}
+    {{- end }}
   annotations:
     "helm.sh/chart": "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
     {{- range $annotationName, $annotationValue := $deployments.annotations }}
@@ -22,27 +25,48 @@ metadata:
     {{- end }}
 spec:
   {{- if $deployments.replicas }}
-  replicas: {{ $deployments.replicas }}
+  replicas: {{ $deployments.replicas | default $defaults.replicas }}
+  {{- end }}
+  {{- if $deployments.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ $deployments.revisionHistoryLimit }}
+  {{- else if $defaults.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ $defaults.revisionHistoryLimit }}
+  {{- end }}
+  {{- if $deployments.progressDeadlineSeconds }} 
+  progressDeadlineSeconds: {{ $deployments.progressDeadlineSeconds }} 
+  {{- else if $defaults.progressDeadlineSeconds }}
+  progressDeadlineSeconds: {{ $defaults.progressDeadlineSeconds }} 
   {{- end }}
   strategy:
-    {{- if $deployments.rollingUpdate }}
-    {{- if $deployments.rollingUpdate.enabled }}
-    type: RollingUpdate
+  {{- if $deployments.strategy }}
+    type: {{ $deployments.strategy.type }}
+    {{- if $deployments.strategy.rollingUpdate }}
     rollingUpdate:
-      maxSurge: {{ $deployments.rollingUpdate.maxSurge | default "25%" | quote }}
-      maxUnavailable: {{ $deployments.rollingUpdate.maxUnavailable | default "0%" | quote }}
-    {{- else }}
-    type: Recreate
+      maxSurge: {{ $deployments.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ $deployments.strategy.rollingUpdate.maxUnavailable }}
     {{- end }}
-    {{- else }}
-    type: Recreate
+  {{- else if $defaults.strategy }}
+    type: {{ $defaults.strategy.type }}
+    {{- if $defaults.strategy.rollingUpdate }}
+    rollingUpdate:
+      maxSurge: {{ $defaults.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ $defaults.strategy.rollingUpdate.maxUnavailable }}
     {{- end }}
+  {{- else }}
+    type: Recreate
+  {{- end }}
+  
+  {{- if $deployments.selector }}
   selector:
     matchLabels:
-      app: {{ $container.name  }}
-      {{- range $labelName, $labelValue := $deployments.labels }}
-      {{ $labelName | quote }}: {{ $labelValue | quote }}
+      {{- range $matchLabelsName, $matchLabelsValue := $deployments.selector.matchLabels }}
+      {{ $matchLabelsName }}: {{ $matchLabelsValue }}
       {{- end }}
+  {{- else }}
+  selector:
+    matchLabels:
+      app: {{ $deployments.name }}
+  {{- end }}
   template:
     metadata:
       labels:
@@ -125,18 +149,30 @@ spec:
           {{- if $container.lifecycle }} 
           lifecycle:
 {{ toYaml $container.lifecycle | indent 12 }}
+          {{- else if $defaults.containers.lifecycle }}
+          lifecycle:
+{{- toYaml $defaults.containers.lifecycle | nindent 12 }}
           {{- end }}
           {{- if $container.livenessProbe }} 
           livenessProbe:
 {{ toYaml $container.livenessProbe | indent 12 }}
+          {{- else if $defaults.containers.livenessProbe }}
+          livenessProbe:
+{{- toYaml $defaults.containers.livenessProbe | nindent 12 }}
           {{- end }}
           {{- if $container.readinessProbe }}
           readinessProbe:
 {{ toYaml $container.readinessProbe | indent 12 }}
+          {{- else if $defaults.containers.readinessProbe }}
+          readinessProbe:
+{{- toYaml $defaults.containers.readinessProbe | nindent 12 }}
           {{- end }}
           {{- if $container.startupProbe }}
           startupProbe:
 {{ toYaml $container.startupProbe | indent 12 }}
+          {{- else if $defaults.containers.startupProbe }}
+          startupProbe:
+{{- toYaml $defaults.containers.startupProbe | nindent 12 }}
           {{- end }}
           {{- if $container.volumeDevices }}
           volumeDevices:
@@ -199,6 +235,52 @@ spec:
               {{- else }}
               {{- if $container.resources.limits }}
               {{- if $container.resources.limits.ephemeralStorage }}
+              ephemeral-storage: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- else if $defaults.containers.resources }}
+          resources:
+            {{- with $defaults.containers.resources.limits }}
+            limits:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if $defaults.containers.resources.requests }}
+            {{- with $defaults.containers.resources.requests }}
+            requests:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- else }}
+              {{- if $defaults.containers.resources.limits }}
+              {{- if $defaults.containers.resources.limits.cpu }}
+              cpu: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- else }}
+              {{- if $defaults.containers.resources.limits }}
+              {{- if $defaults.containers.resources.limits.memory }}
+              memory: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- else }}
+              {{- if $defaults.containers.resources.limits }}
+              {{- if $defaults.containers.resources.limits.ephemeralStorage }}
               ephemeral-storage: "0"
               {{- end }}
               {{- end }}
@@ -362,15 +444,21 @@ spec:
       {{- end }}
       imagePullSecrets:
         {{- range $secretIndex, $secretName := $deployments.pullSecrets }}
-        - name: {{ $secretName }}
+        - name: {{ $secretName | default "dockerkey"}}
         {{- end }}
       {{- if $deployments.nodeSelector }}  
       nodeSelector:
 {{ toYaml $deployments.nodeSelector | indent 8 }}
+      {{- else if $defaults.nodeSelector }}
+      nodeSelector:
+{{- toYaml $defaults.nodeSelector | nindent 8 }}
       {{- end }}
       {{- if $deployments.nodeName }} 
       nodeName:
 {{ toYaml $deployments.nodeName | indent 8 }}
+      {{- else if $defaults.nodeName }}.
+      nodeName:
+{{- toYaml $defaults.nodeName | nindent 8 }}      
       {{- end }}
       affinity:
           podAntiAffinity:
@@ -389,6 +477,9 @@ spec:
       {{- if $deployments.dnsConfig }} 
       dnsConfig:
 {{ toYaml $deployments.dnsConfig | indent 8 }}
+      {{- else if $defaults.dnsConfig }}
+      dnsConfig:
+{{- toYaml $defaults.dnsConfig | nindent 8 }}
       {{- end }}
       {{- if $deployments.hostAliases }} 
       hostAliases:
@@ -445,6 +536,8 @@ spec:
       {{- end }}
       {{- if $deployments.restartPolicy }}
       restartPolicy: {{ $deployments.restartPolicy }}
+      {{- else if $defaults.restartPolicy }}
+      restartPolicy: {{ $defaults.restartPolicy }}
       {{- end }}
       {{- if $deployments.runtimeClassName }}
       runtimeClassName: {{ $deployments.runtimeClassName }}

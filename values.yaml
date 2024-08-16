@@ -29,45 +29,59 @@ secrets: {}
 
 
 deploymentDefaults:
-  resources:
-    limits:
-      cpu: 2000m
-      memory: 2500Mi
-    requests:
-      cpu: 1000m
-      memory: 1500Mi
-  readinessProbe:
-    httpGet:
-      path: /readiness
-      port: 80
-      scheme: HTTP
-    initialDelaySeconds: 10
-    timeoutSeconds: 10
-    periodSeconds: 10
-    successThreshold: 1
-    failureThreshold: 3
-  livenessProbe:
-    httpGet:
-      path: /liveness
-      port: 80
-      scheme: HTTP
-    initialDelaySeconds: 10
-    timeoutSeconds: 10
-    periodSeconds: 10
-    successThreshold: 1
-    failureThreshold: 3
-  env:
-    - name: NODE_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-    - name: DD_AGENT_HOST
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-  envFrom:
-    - configMapRef:
-        name: ui-app
+  replicas: 2
+  pullSecrets:
+    - dockerkey
+  rollingUpdate:
+    enabled: true
+    maxSurge: 25%
+    maxUnavailable: 25%
+  nodeSelector:
+    node-role.kubernetes.io: nodes
+  dnsConfig:
+    options:
+    - name: single-request-reopen
+  containers:
+    schedulerName: "default-scheduler"
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2500Mi
+      requests:
+        cpu: 1000m
+        memory: 1500Mi
+    readinessProbe:
+      httpGet:
+        path: /readiness
+        port: 80
+        scheme: HTTP
+      initialDelaySeconds: 10
+      timeoutSeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
+    livenessProbe:
+      httpGet:
+        path: /liveness
+        port: 80
+        scheme: HTTP
+      initialDelaySeconds: 10
+      timeoutSeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
+    env:
+      - name: NODE_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      - name: DD_AGENT_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+    envFrom:
+      - configMapRef:
+          name: ui-app
 
 cronJobDefaults:
   image:
