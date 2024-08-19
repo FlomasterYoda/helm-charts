@@ -135,12 +135,10 @@ spec:
           {{- if $container.useDefaultEnvs }}
             {{- $env = $defaults.env }}
           {{- end }}
-          
           {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
           {{- if $container.useExternalSecrets }}
             {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
           {{- end }}
-
           {{- $envFrom := $container.envFrom }}
           {{- if $container.useDefaultEnvsFrom }}
             {{- $envFrom = $defaults.envFrom }}
@@ -346,11 +344,9 @@ spec:
             {{- $env = $defaults.env }}
           {{- end }}
           {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
-
           {{- if $container.useExternalSecrets }}
           {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
           {{- end }}
-
           {{- $envFrom := $container.envFrom }}
           {{- if $container.useDefaultEnvsFrom }}
             {{- $envFrom = $defaults.envFrom }}
@@ -443,9 +439,7 @@ spec:
         {{- end }}
       {{- end }}
       imagePullSecrets:
-        {{- range $secretIndex, $secretName := $deployments.pullSecrets }}
-        - name: {{ $secretName | default "dockerkey"}}
-        {{- end }}
+        - name: {{ $deployments.imagePullSecrets | default $.Values.image.imagePullSecrets }}
       {{- if $deployments.nodeSelector }}  
       nodeSelector:
 {{ toYaml $deployments.nodeSelector | indent 8 }}
