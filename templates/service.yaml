@@ -1,62 +1,62 @@
 {{- $labels := .Values.labels -}}
-{{- range $deploymentsIndex, $deployments := .Values.deployments }}
-{{- if $deployments.service }}
+{{- range $servicesIndex, $services := .Values.services }}
+
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ $deployments.service.name }}
+  name: {{ $services.name }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
   annotations:
     service.kubernetes.io/topology-aware-hints: auto
-    {{- range $annotationName, $annotationValue := $deployments.service.annotations }}
+    {{- range $annotationName, $annotationValue := $services.annotations }}
     {{ $annotationName }}: {{ $annotationValue }}
     {{- end }}
 spec:
-  {{- if $deployments.service.clusterIP }}
-  clusterIP: {{ $deployments.service.clusterIP }}
+  {{- if $services.clusterIP }}
+  clusterIP: {{ $services.clusterIP }}
   {{- end }}
-  {{- if $deployments.service.externalIPs }}
+  {{- if $services.externalIPs }}
   externalIPs:
-    {{- range $externalIPIndex, $externalIP := $deployments.service.externalIPs }}
+    {{- range $externalIPIndex, $externalIP := $services.externalIPs }}
     - {{ $externalIP }}
     {{- end }}
     {{- end }}
-  {{- if $deployments.service.externalName }}
-  externalName: {{ $deployments.service.externalName }}
+  {{- if $services.externalName }}
+  externalName: {{ $services.externalName }}
   {{- end }}
-  {{- if $deployments.service.externalTrafficPolicy }}
-  externalTrafficPolicy: {{ $deployments.service.externalTrafficPolicy }}
+  {{- if $services.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ $services.externalTrafficPolicy }}
   {{- end }}
-  {{- if $deployments.service.healthCheckNodePort }}
-  healthCheckNodePort: {{ $deployments.service.healthCheckNodePort }}
+  {{- if $services.healthCheckNodePort }}
+  healthCheckNodePort: {{ $services.healthCheckNodePort }}
   {{- end }}
-  {{- if $deployments.service.ipFamily }}
-  ipFamily: {{ $deployments.service.ipFamily }}
+  {{- if $services.ipFamily }}
+  ipFamily: {{ $services.ipFamily }}
   {{- end }}
-  {{- if $deployments.service.loadBalancerIP }}
-  loadBalancerIP: {{ $deployments.service.loadBalancerIP }}
+  {{- if $services.loadBalancerIP }}
+  loadBalancerIP: {{ $services.loadBalancerIP }}
   {{- end }}
-  {{- if $deployments.service.loadBalancerSourceRanges }}
+  {{- if $services.loadBalancerSourceRanges }}
   loadBalancerSourceRanges:
-{{ toYaml $deployments.service.loadBalancerSourceRanges | indent 4 }}
+{{ toYaml $services.loadBalancerSourceRanges | indent 4 }}
   {{- end }}
-  {{- if $deployments.service.publishNotReadyAddresses }}
-  publishNotReadyAddresses: {{ $deployments.service.publishNotReadyAddresses }}
+  {{- if $services.publishNotReadyAddresses }}
+  publishNotReadyAddresses: {{ $services.publishNotReadyAddresses }}
   {{- end }}
-  {{- if $deployments.service.sessionAffinity }}
-  sessionAffinity: {{ $deployments.service.sessionAffinity }}
+  {{- if $services.sessionAffinity }}
+  sessionAffinity: {{ $services.sessionAffinity }}
   {{- end }}
-  {{- if $deployments.service.sessionAffinityConfig }}
+  {{- if $services.sessionAffinityConfig }}
   sessionAffinityConfig:
-{{ toYaml $deployments.service.sessionAffinityConfig | indent 4 }}
+{{ toYaml $services.sessionAffinityConfig | indent 4 }}
   {{- end }}
-  {{- if $deployments.service.topologyKeys }}
+  {{- if $services.topologyKeys }}
   topologyKeys:
-{{ toYaml $deployments.service.topologyKeys | indent 4 }}
+{{ toYaml $services.topologyKeys | indent 4 }}
   {{- end }}
   ports:
-    {{- range $portMapIndex, $portMap := $deployments.service.ports }}
+    {{- range $portMapIndex, $portMap := $services.ports }}
     {{- if $portMap.name }}
     - name: {{ $portMap.name }}
     {{- else }}
@@ -74,10 +74,9 @@ spec:
       protocol: {{ $portMap.protocol | default "TCP" }}
     {{- end }}
   selector:
-    {{- with $deployments.service.selector -}}
+    {{- with $services.selector -}}
     {{ toYaml . | nindent 4 }}
     {{- end }}
-  type: {{ $deployments.service.type | default "ClusterIP" }}
+  type: {{ $services.type | default "ClusterIP" }}
 ---
-{{- end }}
 {{- end }}

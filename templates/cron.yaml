@@ -48,7 +48,9 @@ spec:
         metadata:
           labels:
             {{- include "common.labels" $labels | nindent  12 }}
-            cron: {{ $job.name }}
+            {{- with $job.jobLabels -}}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
         spec:
           {{- if $job.nodeSelector }}
           {{- with $job.nodeSelector }}
@@ -60,7 +62,7 @@ spec:
             node-role.kubernetes.io: nodes
           {{- end }}        
           imagePullSecrets:
-          - name: {{ $job.image.pullSecret | default $.Values.image.pullSecret }}
+          - name: {{ $job.image.imagePullSecrets | default $.Values.image.imagePullSecrets }}
           {{- if $job.dnsConfig }} 
           dnsConfig:
           {{- toYaml $job.dnsConfig | nindent 12 }}
@@ -85,8 +87,11 @@ spec:
             imagePullPolicy: {{ $job.image.pullPolicy | default "IfNotPresent" }}
             env:
 {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
+{{- if $job.useExternalSecrets }}
 {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
+{{- end }}
 {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 8 }}
+            name: {{ $job.name }}
             {{- if $job.command }}
             command: {{ $job.command }}
             {{- end }}

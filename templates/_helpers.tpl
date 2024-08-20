@@ -25,6 +25,6 @@
 {{- define "common.envVarsFrom" -}}
   {{- with .EnvFrom }}
     envFrom:
-      {{- toYaml . | nindent 6 }}
+      {{- toYaml . | nindent 6 -}}
   {{- end }}
 {{- end -}}
