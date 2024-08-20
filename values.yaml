@@ -1,5 +1,15 @@
-#### Common Helm Chart ####
 name: app
+####################### Image Version #######################
+image:
+  version: latest
+
+####################### EKS #######################
+eks:
+  image:
+    repository: "111111111111.dkr.ecr.us-west-2.amazonaws.com/app-repo"
+    imagePullPolicy: IfNotPresent
+
+####################### labels #######################
 labels:
   application: "app"
   environment-type: "qa"
@@ -9,102 +19,37 @@ labels:
   sensitive-data: false
   owneremail: "devops-email.com"
 
-image:
-  repository: "111111111111.dkr.ecr.us-west-2.amazonaws.com/app-repo"
-  version: "1.11.1-11111111"
-  pullPolicy: IfNotPresent
-  pullSecret: dockerkey
-
-jobs: {}
-
-deployments: {}
-
-data: {}
-
-volumes: {}
-
-serviceAccounts: {}
-
+####################### secrets #######################
 secrets: {}
 
+####################### configmap #######################
+data: {}
 
-deploymentDefaults:
-  replicas: 2
-  pullSecrets:
-    - dockerkey
-  rollingUpdate:
-    enabled: true
-    maxSurge: 25%
-    maxUnavailable: 25%
-  nodeSelector:
-    node-role.kubernetes.io: nodes
-  dnsConfig:
-    options:
-    - name: single-request-reopen
-  containers:
-    schedulerName: "default-scheduler"
-    resources:
-      limits:
-        cpu: 2000m
-        memory: 2500Mi
-      requests:
-        cpu: 1000m
-        memory: 1500Mi
-    readinessProbe:
-      httpGet:
-        path: /readiness
-        port: 80
-        scheme: HTTP
-      initialDelaySeconds: 10
-      timeoutSeconds: 10
-      periodSeconds: 10
-      successThreshold: 1
-      failureThreshold: 3
-    livenessProbe:
-      httpGet:
-        path: /liveness
-        port: 80
-        scheme: HTTP
-      initialDelaySeconds: 10
-      timeoutSeconds: 10
-      periodSeconds: 10
-      successThreshold: 1
-      failureThreshold: 3
-    env:
-      - name: NODE_IP
-        valueFrom:
-          fieldRef:
-            fieldPath: status.hostIP
-      - name: DD_AGENT_HOST
-        valueFrom:
-          fieldRef:
-            fieldPath: status.hostIP
-    envFrom:
-      - configMapRef:
-          name: ui-app
+####################### services #######################
+services: {}
 
+####################### serviceAccounts #######################
+serviceAccounts: {}
+
+####################### volumes #######################
+volumes: {}
+
+####################### cronJobDefaults #######################
 cronJobDefaults:
   image:
     pullPolicy: IfNotPresent
   resources:
     limits:
-      cpu: "200m"
+      cpu: "500m"
       memory: 250Mi
     requests:
       cpu: "150m"
       memory: 150Mi
-  serviceAccount: 
-    name: ms-ssense
-  securityContext: {}
-
   failedJobsHistoryLimit: 5
   successfulJobsHistoryLimit: 5
   concurrencyPolicy: Forbid
   suspend: true
   restartPolicy: OnFailure
-  affinity: []
-  nodeSelector:
-    node-role.kubernetes.io: nodes
   volumes: {}
   env:
     - name: NODE_IP
@@ -115,6 +60,61 @@ cronJobDefaults:
       valueFrom:
         fieldRef:
           fieldPath: status.hostIP
-  envFrom:
-    - configMapRef:
-        name: central-env
+
+####################### jobs #######################
+jobs: {}
+
+####################### DeploymentDefaults #######################
+deploymentDefaults: 
+  revisionHistoryLimit: 3
+  strategy: 
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 10%
+    type: RollingUpdate
+  dnsPolicy: ClusterFirst
+  restartPolicy: OnFailure
+  terminationGracePeriodSeconds: 30
+  schedulerName: default-scheduler
+  nodeSelector:
+    node-role.kubernetes.io: nodes  
+  containers:
+    livenessProbe: 
+      httpGet:
+        path: /liveness
+        port: 80
+        scheme: HTTP
+      initialDelaySeconds: 10
+      timeoutSeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
+    readinessProbe: 
+      httpGet:
+        path: /readiness
+        port: 80
+        scheme: HTTP
+      initialDelaySeconds: 10
+      timeoutSeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
+    resources: 
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    env:
+      - name: NODE_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      - name: DD_AGENT_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+
+####################### Deployments #######################
+deployments: {}

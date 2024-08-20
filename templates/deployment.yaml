@@ -2,8 +2,9 @@
 {{- $secrets := .Values.secrets }}
 {{- $volumes := .Values.volumes }}
 {{- $defaults := .Values.deploymentDefaults -}}
-{{- $image_name := .Values.image.repository }}
+{{- $image_name := .Values.eks.image.repository }}
 {{- $image_version := .Values.image.version }}
+{{- $image_pull_policy := .Values.eks.image.imagePullPolicy }}
 
 {{- range $deploymentsIndex, $deployments := .Values.deployments }}
 {{- range $containerIndex, $container := $deployments.containers }}
@@ -89,7 +90,7 @@ spec:
         - name: "container-{{ $containerIndex }}"
           {{- end }}
           image: {{ $image_name }}:{{ $image_version }}
-          imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
+          imagePullPolicy: {{ $container.image.imagePullPolicy | default $image_pull_policy }}
           {{- if $container.ports }}          
           ports:
 {{ toYaml $container.ports | indent 12 }}
@@ -133,7 +134,7 @@ spec:
           env:
           {{- $env := $container.env }}
           {{- if $container.useDefaultEnvs }}
-            {{- $env = $defaults.env }}
+            {{- $env = $defaults.containers.env }}
           {{- end }}
           {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
           {{- if $container.useExternalSecrets }}
@@ -141,7 +142,7 @@ spec:
           {{- end }}
           {{- $envFrom := $container.envFrom }}
           {{- if $container.useDefaultEnvsFrom }}
-            {{- $envFrom = $defaults.envFrom }}
+            {{- $envFrom = $defaults.containers.envFrom }}
           {{- end }}
           {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
           {{- if $container.lifecycle }} 
@@ -574,9 +575,9 @@ spec:
         {{- end }}
         {{- end }}
         {{- if $isVolumeOfThisComponent }}
-        - name: {{ $volume.name }}
+        - name: {{ $volume.storageClassName }}
           persistentVolumeClaim:
-            claimName: {{ $volume.storageClassName }}
+            claimName: {{ $volume.name }}
         {{- end }}
 {{- /*            InitContainers            */}}
         {{- $isVolumeOfThisComponent := false }}
@@ -587,9 +588,9 @@ spec:
         {{- end }}
         {{- end }}
         {{- if $isVolumeOfThisComponent }}
-        - name: {{ $volume.name }}
+        - name: {{ $volume.storageClassName }}
           persistentVolumeClaim:
-            claimName: {{ $volume.storageClassName }}
+            claimName: {{ $volume.name }}
         {{- end }}
         {{- end }}
         {{- end }}
