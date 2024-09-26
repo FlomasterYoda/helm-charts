@@ -3,6 +3,8 @@
 {{- $serviceAccount := .Values.serviceAccount -}}
 {{- $secrets := .Values.secrets }}
 {{- range $job := .Values.jobs }}
+{{- $customLabels := $job.jobLabels -}}
+{{- $annotations := $job.annotations -}}
 {{- $image_name := $.Values.image.repository }}
 {{- $image_version := $.Values.image.version }}
 
@@ -14,6 +16,11 @@
 {{- $envFrom := $job.envFrom }}
 {{- if $job.useDefaultEnvsFrom }}
   {{- $envFrom = $defaults.envFrom }}
+{{- end }}
+
+{{- $envVarValuesFrom := $job.envVarValuesFrom }}
+{{- if $job.useDefaulenvVarValuesFrom }}
+  {{- $envVarValuesFrom = $defaults.envVarValuesFrom }}
 {{- end }}
 
 {{- $resources := $job.resources | default $defaults.resources}}
@@ -32,9 +39,14 @@ metadata:
   name: {{ $job.name }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
+    {{- if $annotations }}
+    annotations:
+      {{- include "common.annotations" $annotations | nindent 12 }}
+    {{- end }}
 spec:
   concurrencyPolicy: {{ $job.concurrencyPolicy  | default $defaults.concurrencyPolicy }}
-  failedJobsHistoryLimit: {{ $job.failedJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $job.failedJobsHistoryLimit | default $defaults.failedJobsHistoryLimit }}
   startingDeadlineSeconds: 3600
   jobTemplate:
     spec:
@@ -48,10 +60,11 @@ spec:
         metadata:
           labels:
             {{- include "common.labels" $labels | nindent  12 }}
-            {{- with $job.jobLabels -}}
-            {{ toYaml . | nindent 12 }}
-            {{- end }}
-        spec:
+            {{- include "common.labels" $customLabels | nindent 12 }}
+          {{- if $annotations }}
+          annotations:
+            {{- include "common.annotations" $annotations | nindent 12 }}
+          {{- end }}
           {{- if $job.nodeSelector }}
           {{- with $job.nodeSelector }}
           nodeSelector:
@@ -62,7 +75,7 @@ spec:
             node-role.kubernetes.io: nodes
           {{- end }}        
           imagePullSecrets:
-          - name: {{ $job.image.imagePullSecrets | default $.Values.image.imagePullSecrets }}
+          - name: {{ $job.imagePullSecrets | default $.Values.image.imagePullSecrets }}
           {{- if $job.dnsConfig }} 
           dnsConfig:
           {{- toYaml $job.dnsConfig | nindent 12 }}
@@ -86,11 +99,12 @@ spec:
           - image: "{{ $image_name }}:{{ $image_version }}"
             imagePullPolicy: {{ $job.image.pullPolicy | default "IfNotPresent" }}
             env:
-{{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
+{{- include "common.envVars" (dict "Env" $env) | indent 10 }}
+{{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 8 }}
 {{- if $job.useExternalSecrets }}
-{{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
+{{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 10 }}
 {{- end }}
-{{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 8 }}
+{{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 8 }}
             name: {{ $job.name }}
             {{- if $job.command }}
             command: {{ $job.command }}
@@ -99,13 +113,10 @@ spec:
             args:
               {{- toYaml . | nindent 14 }}
             {{- end }}
-
             {{- with $resources }}
             resources:
               {{- toYaml . | nindent 14 }}
             {{- end }}
-
-
             {{- if $volumes }}
             volumeMounts:
               {{- range $volume := $volumes }}
@@ -113,7 +124,6 @@ spec:
                 mountPath: {{ $volume.mountPath }}
               {{- end }}
             {{- end }}
-
           {{- with $job.affinity }}
           affinity:
             {{- toYaml . | nindent 12 }}
@@ -124,10 +134,8 @@ spec:
           {{- end }}
           {{ if $job.activeDeadlineSeconds }}
           activeDeadlineSeconds: {{ $job.activeDeadlineSeconds }}
-          {{ end }}
+          {{- end }}
           restartPolicy: {{ $job.restartPolicy | default $defaults.restartPolicy }}
-
-
           {{- if $volumes }}
           volumes:
             {{- range $volume := $volumes }}
@@ -136,10 +144,7 @@ spec:
                 claimName: {{ $volume.persistentVolumeClaim.claimName }}
             {{- end }}
           {{- end }}
-
   schedule: {{ $job.schedule | quote }}
   successfulJobsHistoryLimit: {{ $job.successfulJobsHistoryLimit | default $defaults.successfulJobsHistoryLimit }}
-  {{- if $job.suspend }} 
-  suspend: {{ $job.suspend }} 
-  {{- end }}
+  suspend: {{ $job.suspend | default $defaults.suspend }} 
 {{- end }}

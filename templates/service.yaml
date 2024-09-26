@@ -1,16 +1,18 @@
 {{- $labels := .Values.labels -}}
 {{- range $servicesIndex, $services := .Values.services }}
-
+{{- $customLabels := $services.labels -}}
+{{- $annotations := $services.annotations -}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ $services.name }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
   annotations:
     service.kubernetes.io/topology-aware-hints: auto
-    {{- range $annotationName, $annotationValue := $services.annotations }}
-    {{ $annotationName }}: {{ $annotationValue }}
+    {{- if $annotations }}    
+    {{- include "common.annotations" $annotations | nindent 4 }}
     {{- end }}
 spec:
   {{- if $services.clusterIP }}

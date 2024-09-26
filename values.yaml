@@ -1,13 +1,10 @@
 name: app
 ####################### Image Version #######################
 image:
+  repository: "111111111111.dkr.ecr.us-west-2.amazonaws.com/app-repo"
   version: latest
-
-####################### EKS #######################
-eks:
-  image:
-    repository: "111111111111.dkr.ecr.us-west-2.amazonaws.com/app-repo"
-    imagePullPolicy: IfNotPresent
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: dockerkey
 
 ####################### labels #######################
 labels:
@@ -16,7 +13,7 @@ labels:
   team: "devops"
   domain: "shared"
   product: "shared"
-  sensitive-data: false
+  sensitive-data: "false"
   owneremail: "devops-email.com"
 
 ####################### secrets #######################
@@ -48,10 +45,10 @@ cronJobDefaults:
   failedJobsHistoryLimit: 5
   successfulJobsHistoryLimit: 5
   concurrencyPolicy: Forbid
-  suspend: true
+  suspend: false
   restartPolicy: OnFailure
   volumes: {}
-  env:
+  envVarValuesFrom:
     - name: NODE_IP
       valueFrom:
         fieldRef:
@@ -70,11 +67,11 @@ deploymentDefaults:
   strategy: 
     rollingUpdate:
       maxSurge: 25%
-      maxUnavailable: 10%
+      maxUnavailable: 25%
     type: RollingUpdate
   dnsPolicy: ClusterFirst
-  restartPolicy: OnFailure
-  terminationGracePeriodSeconds: 30
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 10
   schedulerName: default-scheduler
   nodeSelector:
     node-role.kubernetes.io: nodes  
@@ -106,7 +103,7 @@ deploymentDefaults:
       requests:
         cpu: 250m
         memory: 256Mi
-    env:
+    envVarValuesFrom:
       - name: NODE_IP
         valueFrom:
           fieldRef:
