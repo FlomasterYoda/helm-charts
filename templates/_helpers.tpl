@@ -17,8 +17,15 @@
 {{- end -}}
 
 {{- define "common.envVars" -}}
-  {{- with .Env }}
-    {{- toYaml . | nindent 4 }}
+  {{- range $key, $value := .Env }}
+    - name: {{ $key }}
+      value: {{ $value }}
+  {{- end }}
+{{- end -}}
+
+{{- define "common.envVarValuesFrom" -}}
+  {{- with .envVarValuesFrom }}
+    {{- toYaml . | nindent 6 }}
   {{- end }}
 {{- end -}}
 
@@ -26,5 +33,11 @@
   {{- with .EnvFrom }}
     envFrom:
       {{- toYaml . | nindent 6 -}}
+  {{- end }}
+{{- end -}}
+
+{{- define "common.annotations" -}}
+  {{- with . -}}
+    {{ toYaml . }}
   {{- end }}
 {{- end -}}

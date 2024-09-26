@@ -96,6 +96,7 @@ The following table lists the configurable parameters of the chart and their def
 | `jobs[].resources`                    | object | `{}`             | Resource requests and limits.                             |
 | `jobs[].volumes`                      | list   | `[]`             | Volumes to be mounted in the container.                   |
 | `jobs[].env`                          | list   | `[]`             | Environment variables for the job.                        |
+| `jobs[].envVarValuesFrom`             | list   | `[]`             | Environment variables from Pod-level fields.              |
 | `jobs[].envFrom`                      | list   | `[]`             | Environment variables from secrets or configmaps.         |
 | `jobs[].nodeSelector`                 | object | `{}`             | Node selector for the job.                                |
 | `jobs[].affinity`                     | object | `{}`             | Affinity rules for scheduling the job.                    |
@@ -103,8 +104,10 @@ The following table lists the configurable parameters of the chart and their def
 | `jobs[].restartPolicy`                | string | `"Never"`        | Restart policy for the job's containers.                  |
 | `jobs[].useDefaultEnvs`               | bool   | `false`          | Whether to use default environment variables.             |
 | `jobs[].useDefaultEnvsFrom`           | bool   | `false`          | Whether to use default envFrom variables.                 |
+| `jobs[].useDefaulenvVarValuesFrom`    | bool   | `false`          | Whether to use default envVarValuesFrom variables.        |
 | `jobs[].useDefaultResources`          | bool   | `false`          | Whether to use default resources.                         |
 | `jobs[].useDefaultVolumes`            | bool   | `false`          | Whether to use default volumes.                           |
+| `jobs[].useExternalSecrets`           | bool   | `false`          | Whether to use external secrets.                          |
 | `jobs[].useServiceAccount`            | bool   | `false`          | Whether to use a service account.                         |
 | `jobs[].securityContext.runAsUser`    | int    | `nil`            | User ID for the job's container.                          |
 | `jobs[].securityContext.runAsGroup`   | int    | `nil`            | Group ID for the job's container.                         |
@@ -155,6 +158,8 @@ jobs:
     restartPolicy: OnFailure
     useExternalSecrets: true
     useDefaultEnvs: true
+    useDefaultEnvsFrom: true
+    useDefaulenvVarValuesFrom: true
   - name: cj-dev-app-email
     concurrencyPolicy: Forbid
     failedJobsHistoryLimit: 5
@@ -192,7 +197,25 @@ jobs:
           claimName: dev-central-efs-claim
     restartPolicy: OnFailure
     useExternalSecrets: true
-    useDefaultEnvs: true
+    useDefaultEnvs: false
+    useDefaultEnvsFrom: false
+    useDefaulenvVarValuesFrom: false
+    env:
+      APP_ENV: qa
+      APP_IS_PROD_MODE: 'false'
+      APP_PROJECT: cj-dev-app-email
+    envVarValuesFrom:
+      - name: NODE_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      - name: DD_AGENT_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+    envFrom: 
+      - configMapRef:
+          name: cj-dev-app-email-01
 ```
 
 # Helm Chart for Services
@@ -266,6 +289,7 @@ The following table lists the configurable parameters of this chart and their de
 | Key                                | Type   | Default | Description                                            |
 | ---------------------------------- | ------ | ------- | ------------------------------------------------------ |
 | `serviceAccounts`                  | list   | `[]`    | List of ServiceAccounts and their configurations.      |
+| `serviceAccounts[].labels`         | object | `{}`    | Labels specific to the ServiceAccount.                 |
 | `serviceAccounts[].name`           | string | `nil`   | Name of the ServiceAccount.                            |
 | `serviceAccounts[].annotations`    | object | `{}`    | Annotations for the ServiceAccount.                    |
 
@@ -277,7 +301,7 @@ Here is an example of a ServiceAccount configuration:
 serviceAccounts:
   - name: "dev-service-account"
     annotations:
-      iam.gke.io/gcp-service-account: "eks.amazonaws.com/role-arn: arn:aws:iam::111111111111:role/ssense-app-dev"
+      iam.gke.io/gcp-service-account: "eks.amazonaws.com/role-arn: arn:aws:iam::111111111111:role/app-dev"
 ```
 
 # Helm Chart for PersistentVolumeClaims
@@ -291,6 +315,7 @@ The following table lists the configurable parameters of this chart and their de
 | Key                                  | Type   | Default       | Description                                            |
 | ------------------------------------ | ------ | ------------- | ------------------------------------------------------ |
 | `volumes`                            | list   | `[]`          | A list of PVC and their configurations.                |
+| `volumes[].labels`                   | object | `{}`          | Labels specific to the PersistentVolumeClaim.          |
 | `volumes[].name`                     | string | `nil`         | The name of the PersistentVolumeClaim.                 |
 | `volumes[].storageClassName`         | string | `nil`         | The StorageClass name of the PersistentVolumeClaim.    |
 | `volumes[].volumeMode`               | string | `nil`         | The volume mode (e.g. Filesystem or Block).            |
@@ -322,46 +347,60 @@ This Helm Chart allows for your deployments.
 
 The following table lists the configurable parameters of this chart and their default values.
 
-| Variable                                           | Type   | Default                | Description                                                  |
-|----------------------------------------------------|--------|------------------------|--------------------------------------------------------------|
-| `deployments.name`                                 | string | `nil`                  | Name of the deployment.                                      |
-| `deployments.labels`                               | object | `{}`                   | Labels specific to the deployment.                           |
-| `deployments.annotations`                          | object | `{}`                   | Annotations specific to the deployment.                      |
-| `deployments.replicas`                             | int    | `1`                    | Number of replicas for the deployment.                       |
-| `deployments.strategy`                             | object | `{ type: "Recreate" }` | Deployment strategy (e.g., RollingUpdate, Recreate).         |
-| `deployments.containers`                           | array  | `[]`                   | List of containers to be deployed.                           |
-| `deployments.nodeSelector`                         | object | `{}`                   | Node selector for the deployment.                            |
-| `deployments.tolerations`                          | array  | `[]`                   | Tolerations for the deployment.                              |
-| `deployments.affinity`                             | object | `{}`                   | Affinity rules for the deployment.                           |
-| `deployments.dnsPolicy`                            | string | `nil`                  | DNS policy for the deployment.                               |
-| `deployments.securityContext`                      | object | `{}`                   | Security context for the deployment.                         |
-| `deployments.hostNetwork`                          | bool   | `false`                | Whether the deployment should use the host's network.        |
-| `deployments.hostIPC`                              | bool   | `false`                | Whether the deployment should use the host's IPC namespace.  |
-| `deployments.hostPID`                              | bool   | `false`                | Whether the deployment should use the host's PID namespace.  |
-| `deployments.topologySpreadConstraints`            | array  | `[]`                   | Topology spread constraints for the deployment.              |
-| `deployments.containers.name`                      | string | `"container-0"`        | Name of the container.                                       |
-| `deployments.containers.image.repository`          | string | `nil`                  | Image repository for the container.                          |
-| `deployments.containers.image.version`             | string | `nil`                  | Image version for the container.                             |
-| `deployments.containers.image.imagePullPolicy`     | string | `"IfNotPresent"`       | Image pull policy for the container.                         |
-| `deployments.containers.ports`                     | array  | `[]`                   | List of ports to expose in the container.                    |
-| `deployments.containers.env`                       | array  | `[]`                   | Environment variables for the container.                     |
-| `deployments.containers.envFrom`                   | array  | `[]`                   | Sources of environment variables from ConfigMaps or Secrets. |
-| `deployments.containers.resources`                 | object | `{}`                   | Resource requests and limits for the container.              |
-| `deployments.containers.livenessProbe`             | object | `{}`                   | Liveness probe configuration for the container.              |
-| `deployments.containers.readinessProbe`            | object | `{}`                   | Readiness probe configuration for the container.             |
-| `deployments.containers.volumeMounts`              | array  | `[]`                   | List of volumes to mount into the container.                 |
-| `deployments.initContainers`                       | array  | `[]`                   | List of init containers for the deployment.                  |
-| `deployments.initContainers.name`                  | string | `"container-0"`        | Name of the inticontainer.                                   |
-| `deployments.initContainers.image.repository`      | string | `nil`                  | Image repository for the inticontainer.                      |
-| `deployments.initContainers.image.version`         | string | `nil`                  | Image version for the inticontainer.                         |
-| `deployments.initContainers.image.imagePullPolicy` | string | `"IfNotPresent"`       | Image pull policy for the inticontainer.                     |
-| `deployments.initContainers.ports`                 | array  | `[]`                   | List of ports to expose in the inticontainer.                |
-| `deployments.initContainers.env`                   | array  | `[]`                   | Environment variables for the inticontainer.                 |
-| `deployments.initContainers.envFrom`               | array  | `[]`                   | Sources of environment variables from ConfigMaps or Secrets. |
-| `deployments.initContainers.resources`             | object | `{}`                   | Resource requests and limits for the inticontainer.          |
-| `deployments.initContainers.livenessProbe`         | object | `{}`                   | Liveness probe configuration for the inticontainer.          |
-| `deployments.initContainers.readinessProbe`        | object | `{}`                   | Readiness probe configuration for the inticontainer.         |
-| `deployments.initContainers.volumeMounts`          | array  | `[]`                   | List of volumes to mount into the inticontainer.             |
+| Variable                                               | Type   | Default                | Description                                                  |
+|--------------------------------------------------------|--------|------------------------|--------------------------------------------------------------|
+| `deployments.name`                                     | string | `nil`                  | Name of the deployment.                                      |
+| `deployments.labels`                                   | object | `{}`                   | Labels specific to the deployment.                           |
+| `deployments.annotations`                              | object | `{}`                   | Annotations specific to the deployment.                      |
+| `deployments.replicas`                                 | int    | `1`                    | Number of replicas for the deployment.                       |
+| `deployments.strategy`                                 | object | `{ type: "Recreate" }` | Deployment strategy (e.g., RollingUpdate, Recreate).         |
+| `deployments.containers`                               | array  | `[]`                   | List of containers to be deployed.                           |
+| `deployments.nodeSelector`                             | object | `{}`                   | Node selector for the deployment.                            |
+| `deployments.tolerations`                              | array  | `[]`                   | Tolerations for the deployment.                              |
+| `deployments.affinity`                                 | object | `{}`                   | Affinity rules for the deployment.                           |
+| `deployments.dnsPolicy`                                | string | `nil`                  | DNS policy for the deployment.                               |
+| `deployments.securityContext`                          | object | `{}`                   | Security context for the deployment.                         |
+| `deployments.hostNetwork`                              | bool   | `false`                | Whether the deployment should use the host's network.        |
+| `deployments.hostIPC`                                  | bool   | `false`                | Whether the deployment should use the host's IPC namespace.  |
+| `deployments.hostPID`                                  | bool   | `false`                | Whether the deployment should use the host's PID namespace.  |
+| `deployments.topologySpreadConstraints`                | array  | `[]`                   | Topology spread constraints for the deployment.              |
+| `deployments.containers.name`                          | string | `"container-0"`        | Name of the container.                                       |
+| `deployments.containers.image.repository`              | string | `nil`                  | Image repository for the container.                          |
+| `deployments.containers.image.version`                 | string | `nil`                  | Image version for the container.                             |
+| `deployments.containers.image.imagePullPolicy`         | string | `"IfNotPresent"`       | Image pull policy for the container.                         |
+| `deployments.containers.ports`                         | array  | `[]`                   | List of ports to expose in the container.                    |
+| `deployments.containers.env`                           | list   | `[]`                   | Environment variables for the container.                     |
+| `deployments.containers.envVarValuesFrom`              | list   | `[]`                   | Environment variables from Pod-level fields.                 |
+| `deployments.containers.envFrom`                       | array  | `[]`                   | Sources of environment variables from ConfigMaps or Secrets. |
+| `deployments.containers.resources`                     | object | `{}`                   | Resource requests and limits for the container.              |
+| `deployments.containers.livenessProbe`                 | object | `{}`                   | Liveness probe configuration for the container.              |
+| `deployments.containers.readinessProbe`                | object | `{}`                   | Readiness probe configuration for the container.             |
+| `deployments.containers.volumeMounts`                  | array  | `[]`                   | List of volumes to mount into the container.                 |
+| `deployments.containers.useDefaultEnvs`                | bool   | `false`                | Whether to use default environment variables.                |
+| `deployments.containers.useDefaultEnvsFrom`            | bool   | `false`                | Whether to use default envFrom variables.                    |
+| `deployments.containers.useDefaulenvVarValuesFrom`     | bool   | `false`                | Whether to use default envVarValuesFrom variables.           |
+| `deployments.containers.useDefaultResources`           | bool   | `false`                | Whether to use default resources.                            |
+| `deployments.containers.useDefaultVolumes`             | bool   | `false`                | Whether to use default volumes.                              |
+| `deployments.containers.useExternalSecrets`            | bool   | `false`                | Whether to use external secrets.                             |
+| `deployments.initContainers`                           | array  | `[]`                   | List of init containers for the deployment.                  |
+| `deployments.initContainers.name`                      | string | `"container-0"`        | Name of the inticontainer.                                   |
+| `deployments.initContainers.image.repository`          | string | `nil`                  | Image repository for the inticontainer.                      |
+| `deployments.initContainers.image.version`             | string | `nil`                  | Image version for the inticontainer.                         |
+| `deployments.initContainers.image.imagePullPolicy`     | string | `"IfNotPresent"`       | Image pull policy for the inticontainer.                     |
+| `deployments.initContainers.ports`                     | array  | `[]`                   | List of ports to expose in the inticontainer.                |
+| `deployments.initContainers.env`                       | list   | `[]`                   | Environment variables for the inticontainer.                 |
+| `deployments.initContainers.envVarValuesFrom`          | list   | `[]`                   | Environment variables from Pod-level fields.                 |
+| `deployments.initContainers.envFrom`                   | array  | `[]`                   | Sources of environment variables from ConfigMaps or Secrets. |
+| `deployments.initContainers.resources`                 | object | `{}`                   | Resource requests and limits for the inticontainer.          |
+| `deployments.initContainers.livenessProbe`             | object | `{}`                   | Liveness probe configuration for the inticontainer.          |
+| `deployments.initContainers.readinessProbe`            | object | `{}`                   | Readiness probe configuration for the inticontainer.         |
+| `deployments.initContainers.volumeMounts`              | array  | `[]`                   | List of volumes to mount into the inticontainer.             |
+| `deployments.initContainers.useDefaultEnvs`            | bool   | `false`                | Whether to use default environment variables.                |
+| `deployments.initContainers.useDefaultEnvsFrom`        | bool   | `false`                | Whether to use default envFrom variables.                    |
+| `deployments.initContainers.useDefaulenvVarValuesFrom` | bool   | `false`                | Whether to use default envVarValuesFrom variables.           |
+| `deployments.initContainers.useDefaultResources`       | bool   | `false`                | Whether to use default resources.                            |
+| `deployments.initContainers.useDefaultVolumes`         | bool   | `false`                | Whether to use default volumes.                              |
+| `deployments.initContainers.useExternalSecrets`        | bool   | `false`                | Whether to use external secrets.                             |
 
 ## Examlpe
 
@@ -406,10 +445,14 @@ deployments:
             memory: 150Mi
         useExternalSecrets: true
         useDefaultEnvs: false
-        envFrom: 
-          - configMapRef:
-              name: dev-app
-        env: 
+        useDefaultEnvsFrom: false
+        useDefaulenvVarValuesFrom: false
+        env:
+          NODE_ENV: qa
+          APP_ACCESS_LOGGER_ENABLED: 'true'
+          APP_LOGGER_ENABLED: 'true'
+          APP_LOGGER_LEVEL: '1'          
+        envVarValuesFrom: 
           - name: NODE_IP
             valueFrom:
               fieldRef:
@@ -418,4 +461,7 @@ deployments:
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+        envFrom: 
+          - configMapRef:
+              name: dev-app
 ```

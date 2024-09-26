@@ -2,11 +2,13 @@
 {{- $secrets := .Values.secrets }}
 {{- $volumes := .Values.volumes }}
 {{- $defaults := .Values.deploymentDefaults -}}
-{{- $image_name := .Values.eks.image.repository }}
+{{- $image_name := .Values.image.repository }}
 {{- $image_version := .Values.image.version }}
-{{- $image_pull_policy := .Values.eks.image.imagePullPolicy }}
+{{- $image_pull_policy := .Values.image.imagePullPolicy }}
 
 {{- range $deploymentsIndex, $deployments := .Values.deployments }}
+{{- $customLabels := $deployments.labels -}}
+{{- $annotations := $deployments.annotations -}}
 {{- range $containerIndex, $container := $deployments.containers }}
 
 apiVersion: apps/v1
@@ -15,14 +17,10 @@ metadata:
   name: {{ $deployments.name }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
-    app: {{ $deployments.name }}
-    {{- range $labelName, $labelValue := $deployments.labels }}
-    {{ $labelName | quote }}: {{ $labelValue | quote }}
-    {{- end }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
+    {{- if $annotations }}
   annotations:
-    "helm.sh/chart": "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
-    {{- range $annotationName, $annotationValue := $deployments.annotations }}
-    {{ $annotationName | quote }}: {{ $annotationValue | quote }}
+    {{- include "common.annotations" $annotations | nindent 4 }}
     {{- end }}
 spec:
   {{- if $deployments.replicas }}
@@ -66,19 +64,16 @@ spec:
   {{- else }}
   selector:
     matchLabels:
-      app: {{ $deployments.name }}
+      application: {{ $deployments.name }}
   {{- end }}
   template:
     metadata:
       labels:
         {{- include "common.labels" $labels | nindent 8 }}
-        {{- range $labelName, $labelValue := $deployments.labels }}
-        {{ $labelName | quote }}: {{ $labelValue | quote }}
-        {{- end }}
+        {{- include "common.labels" $customLabels | nindent 8 }}
+        {{- if $annotations }}
       annotations:
-        "helm.sh/chart": "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
-        {{- range $annotationName, $annotationValue := $deployments.annotations }}
-        {{ $annotationName | quote }}: {{ $annotationValue | quote }}
+        {{- include "common.annotations" $annotations | nindent 8 }}
         {{- end }}
     spec:
 {{- /*            Containers            */}}      
@@ -136,15 +131,20 @@ spec:
           {{- if $container.useDefaultEnvs }}
             {{- $env = $defaults.containers.env }}
           {{- end }}
-          {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
+          {{- include "common.envVars" (dict "Env" $env) | indent 8 }}
+          {{- $envVarValuesFrom := $container.envVarValuesFrom }}
+          {{- if $container.useDefaulenvVarValuesFrom }}
+            {{- $envVarValuesFrom = $defaults.containers.envVarValuesFrom }}
+          {{- end }}
+          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 6 }}
           {{- if $container.useExternalSecrets }}
-            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
+            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 8 }}
           {{- end }}
           {{- $envFrom := $container.envFrom }}
           {{- if $container.useDefaultEnvsFrom }}
             {{- $envFrom = $defaults.containers.envFrom }}
           {{- end }}
-          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
+          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 6 }}
           {{- if $container.lifecycle }} 
           lifecycle:
 {{ toYaml $container.lifecycle | indent 12 }}
@@ -155,16 +155,10 @@ spec:
           {{- if $container.livenessProbe }} 
           livenessProbe:
 {{ toYaml $container.livenessProbe | indent 12 }}
-          {{- else if $defaults.containers.livenessProbe }}
-          livenessProbe:
-{{- toYaml $defaults.containers.livenessProbe | nindent 12 }}
           {{- end }}
           {{- if $container.readinessProbe }}
           readinessProbe:
 {{ toYaml $container.readinessProbe | indent 12 }}
-          {{- else if $defaults.containers.readinessProbe }}
-          readinessProbe:
-{{- toYaml $defaults.containers.readinessProbe | nindent 12 }}
           {{- end }}
           {{- if $container.startupProbe }}
           startupProbe:
@@ -342,17 +336,22 @@ spec:
           env:
           {{- $env := $container.env }}
           {{- if $container.useDefaultEnvs }}
-            {{- $env = $defaults.env }}
+            {{- $env = $defaults.containers.env }}
           {{- end }}
-          {{- include "common.envVars" (dict "Env" $env) | nindent 8 }}
+          {{- include "common.envVars" (dict "Env" $env) | indent 8 }}
+          {{- $envVarValuesFrom := $container.envVarValuesFrom }}
+          {{- if $container.useDefaulenvVarValuesFrom }}
+            {{- $envVarValuesFrom = $defaults.containers.envVarValuesFrom }}
+          {{- end }}
+          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 6 }}
           {{- if $container.useExternalSecrets }}
-          {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 8 }}
+            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 8 }}
           {{- end }}
           {{- $envFrom := $container.envFrom }}
           {{- if $container.useDefaultEnvsFrom }}
-            {{- $envFrom = $defaults.envFrom }}
+            {{- $envFrom = $defaults.containers.envFrom }}
           {{- end }}
-          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 6 }}
+          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 6 }}
           {{- if $container.lifecycle }} 
           lifecycle:
 {{ toYaml $container.lifecycle | indent 12 }}
@@ -456,15 +455,15 @@ spec:
 {{- toYaml $defaults.nodeName | nindent 8 }}      
       {{- end }}
       affinity:
-          podAntiAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                  - labelSelector:
-                      matchExpressions:
-                          - key: app
-                            operator: In
-                            values:
-                                - {{ $container.name }}
-                    topologyKey: kubernetes.io/zone
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - {{ $container.name }}
+              topologyKey: kubernetes.io/zone
       {{- if $deployments.tolerations }} 
       tolerations:
 {{ toYaml $deployments.tolerations | indent 8 }}
@@ -598,4 +597,3 @@ spec:
 ---
 {{- end }}
 {{- end }}
-
