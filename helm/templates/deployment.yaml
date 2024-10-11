@@ -1,0 +1,618 @@
+{{- $labels := .Values.labels -}}
+{{- $secrets := .Values.secrets }}
+{{- $volumes := .Values.volumes }}
+{{- $defaults := .Values.deploymentDefaults -}}
+{{- $image_name := .Values.image.repository }}
+{{- $image_version := .Values.image.version }}
+{{- $image_pull_policy := .Values.image.imagePullPolicy }}
+
+{{- range $deploymentsIndex, $deployments := .Values.deployments }}
+{{- $customLabels := $deployments.labels -}}
+{{- $annotations := $deployments.annotations -}}
+{{- $pod_annotations := $deployments.pod_annotations -}}
+{{- range $containerIndex, $container := $deployments.containers }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $deployments.name }}
+  labels:
+    {{- include "common.labels" $labels | nindent 4 }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
+    {{- if $annotations }}
+  annotations:
+    {{- include "common.annotations" $annotations | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if $deployments.replicas }}
+  replicas: {{ $deployments.replicas | default $defaults.replicas }}
+  {{- end }}
+  {{- if $deployments.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ $deployments.revisionHistoryLimit }}
+  {{- else if $defaults.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ $defaults.revisionHistoryLimit }}
+  {{- end }}
+  {{- if $deployments.progressDeadlineSeconds }} 
+  progressDeadlineSeconds: {{ $deployments.progressDeadlineSeconds }} 
+  {{- else if $defaults.progressDeadlineSeconds }}
+  progressDeadlineSeconds: {{ $defaults.progressDeadlineSeconds }} 
+  {{- end }}
+  strategy:
+  {{- if $deployments.strategy }}
+    type: {{ $deployments.strategy.type }}
+    {{- if $deployments.strategy.rollingUpdate }}
+    rollingUpdate:
+      maxSurge: {{ $deployments.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ $deployments.strategy.rollingUpdate.maxUnavailable }}
+    {{- end }}
+  {{- else if $defaults.strategy }}
+    type: {{ $defaults.strategy.type }}
+    {{- if $defaults.strategy.rollingUpdate }}
+    rollingUpdate:
+      maxSurge: {{ $defaults.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ $defaults.strategy.rollingUpdate.maxUnavailable }}
+    {{- end }}
+  {{- else }}
+    type: Recreate
+  {{- end }}
+  
+  {{- if $deployments.selector }}
+  selector:
+    matchLabels:
+      {{- range $matchLabelsName, $matchLabelsValue := $deployments.selector.matchLabels }}
+      {{ $matchLabelsName }}: {{ $matchLabelsValue }}
+      {{- end }}
+  {{- else }}
+  selector:
+    matchLabels:
+      application: {{ $deployments.name }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "common.labels" $labels | nindent 8 }}
+        {{- include "common.labels" $customLabels | nindent 8 }}
+        {{- if $pod_annotations }}
+      annotations:
+        {{- include "common.annotations" $pod_annotations | nindent 8 }}
+        {{- end }}
+    spec:
+{{- /*            Containers            */}}      
+      containers:
+        {{- range $containerIndex, $container := $deployments.containers }}
+          {{- if $container.name }}
+        - name: {{ $container.name }}
+          {{- else }}
+        - name: "container-{{ $containerIndex }}"
+          {{- end }}
+          {{- if and $container.image $container.image.repository }}
+          image: {{ $container.image.repository }}:{{ $container.image.version | default $image_version }}
+          {{- else }}
+          image: {{ $image_name }}:{{ $image_version }}
+          {{- end }}
+          {{- if and $container.image $container.image.imagePullPolicy }}          
+          imagePullPolicy: {{ $container.image.imagePullPolicy }}
+          {{- else }}
+          imagePullPolicy: {{ $image_pull_policy }}
+          {{- end }}
+          {{- if $container.ports }}
+          ports:
+{{ toYaml $container.ports | indent 12 }}
+          {{- end }}
+          {{- if $container.workingDir }}
+          workingDir: {{ $container.workingDir }}
+          {{- end }}
+          {{- if $container.stdin }}
+          stdin: {{ $container.stdin }}
+          {{- end }}
+          {{- if $container.stdinOnce }}
+          stdinOnce: {{ $container.stdinOnce }}
+          {{- end }}
+          {{- if $container.tty }}
+          tty: {{ $container.tty }}
+          {{- end }}
+          {{- if $container.command }} 
+          command:
+            {{- range $commandIndex, $command := $container.command }}
+            - {{ $command | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.args }} 
+          args:
+            {{- range $argIndex, $arg := $container.args }}
+            - {{ $arg | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.terminationMessagePath }}
+          terminationMessagePath: {{ $container.terminationMessagePath }}
+          {{- end }}
+          {{- if $container.terminationMessagePolicy }}
+          terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
+          {{- end }}
+          {{- if $container.securityContext }} 
+          securityContext:
+          {{- range $key, $value := $container.securityContext }}
+            {{ $key }}: {{ $value }}
+          {{- end }}
+          {{- end }}
+          env:
+          {{- $env := $container.env }}
+          {{- if $container.useDefaultEnvs }}
+            {{- $env = $defaults.containers.env }}
+          {{- end }}
+          {{- include "common.envVars" (dict "Env" $env) | indent 8 }}
+          {{- $envVarValuesFrom := $container.envVarValuesFrom }}
+          {{- if $container.useDefaultEnvVarValuesFrom }}
+            {{- $envVarValuesFrom = $defaults.containers.envVarValuesFrom }}
+          {{- end }}
+          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 6 }}
+          {{- if $container.useExternalSecrets }}
+            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 8 }}
+          {{- end }}
+          {{- $envFrom := $container.envFrom }}
+          {{- if $container.useDefaultEnvsFrom }}
+            {{- $envFrom = $defaults.containers.envFrom }}
+          {{- end }}
+          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 6 }}
+          {{- if $container.lifecycle }} 
+          lifecycle:
+{{ toYaml $container.lifecycle | indent 12 }}
+          {{- else if and $defaults.containers $defaults.containers.lifecycle }}
+          lifecycle:
+{{- toYaml $defaults.containers.lifecycle | nindent 12 }}
+          {{- end }}
+          {{- if $container.livenessProbe }} 
+          livenessProbe:
+{{ toYaml $container.livenessProbe | indent 12 }}
+          {{- else if and $defaults.containers $defaults.containers.livenessProbe }}
+          livenessProbe:
+{{- toYaml $defaults.containers.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $container.readinessProbe }}
+          readinessProbe:
+{{ toYaml $container.readinessProbe | indent 12 }}
+          {{- else if and $defaults.containers $defaults.containers.readinessProbe }}
+          readinessProbe:
+{{- toYaml $defaults.containers.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $container.startupProbe }}
+          startupProbe:
+{{ toYaml $container.startupProbe | indent 12 }}
+          {{- else if and $defaults.containers $defaults.containers.startupProbe }}
+          startupProbe:
+{{- toYaml $defaults.containers.startupProbe | nindent 12 }}
+          {{- end }}
+          {{- if $container.volumeDevices }}
+          volumeDevices:
+{{ toYaml $container.volumeDevices | indent 12 }}
+          {{- end }}
+          {{- $volumeMounts := $container.volumeMounts }}
+          {{- if $container.useDefaultVolumes }}
+            {{- $volumeMounts = $defaults.volumeMounts }}
+          {{- end }}
+          {{- if $volumeMounts }}
+          volumeMounts:
+            {{- range $volume := $volumeMounts }}
+            - name: {{ $volume.name }}
+              mountPath: {{ $volume.mountPath }}
+              {{- if $volume.subPath }}
+              subPath: {{ trimAll "/" $volume.subPath | default "" | quote }}
+              {{- end }}
+              {{- if $volume.readOnly }}
+              readOnly: {{ $volume.readOnly | default false }}
+              {{- end }}              
+            {{- end }}
+          {{- end }}
+          {{- if $container.resources }}
+          resources:
+            {{- with $container.resources.limits }}
+            limits:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if $container.resources.requests }}
+            {{- with $container.resources.requests }}
+            requests:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.cpu }}
+              cpu: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.memory }}
+              memory: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.ephemeralStorage }}
+              ephemeral-storage: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- else if and $defaults.containers $defaults.containers.resources }}
+          resources:
+            {{- with $defaults.containers.resources.limits }}
+            limits:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if $defaults.containers.resources.requests }}
+            {{- with $defaults.containers.resources.requests }}
+            requests:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- else }}
+              {{- if $defaults.containers.resources.limits }}
+              {{- if $defaults.containers.resources.limits.cpu }}
+              cpu: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- else }}
+              {{- if $defaults.containers.resources.limits }}
+              {{- if $defaults.containers.resources.limits.memory }}
+              memory: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- else }}
+              {{- if $defaults.containers.resources.limits }}
+              {{- if $defaults.containers.resources.limits.ephemeralStorage }}
+              ephemeral-storage: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+{{- /*            InitContainers            */}}
+      {{- if $deployments.initContainers }}
+      initContainers:
+        {{- range $containerIndex, $container := $deployments.initContainers }}
+          {{- if $container.name }}
+          - name: {{ $container.name }}
+          {{- else }}
+          - name: "container-{{ $containerIndex }}"
+          {{- end }}
+          image: {{ $container.image.repository }}:{{ $container.image.version }}
+          imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
+          {{- if $container.ports }}          
+          ports:
+{{ toYaml $container.ports | indent 12 }}
+          {{- end }}
+          {{- if $container.workingDir }}
+          workingDir: {{ $container.workingDir }}
+          {{- end }}
+          {{- if $container.stdin }}
+          stdin: {{ $container.stdin }}
+          {{- end }}
+          {{- if $container.stdinOnce }}
+          stdinOnce: {{ $container.stdinOnce }}
+          {{- end }}
+          {{- if $container.tty }}
+          tty: {{ $container.tty }}
+          {{- end }}
+          {{- if $container.command }} 
+          command:
+            {{- range $commandIndex, $command := $container.command }}
+            - {{ $command | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.args }} 
+          args:
+            {{- range $argIndex, $arg := $container.args }}
+            - {{ $arg | quote }}
+            {{- end }}
+          {{- end }}  
+          {{- if $container.terminationMessagePath }}
+          terminationMessagePath: {{ $container.terminationMessagePath }}
+          {{- end }}
+          {{- if $container.terminationMessagePolicy }}
+          terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
+          {{- end }}
+          {{- if $container.securityContext }} 
+          securityContext:
+          {{- range $key, $value := $container.securityContext }}
+            {{ $key }}: {{ $value }}
+          {{- end }}
+          {{- end }}
+          env:
+          {{- $env := $container.env }}
+          {{- if $container.useDefaultEnvs }}
+            {{- $env = $defaults.containers.env }}
+          {{- end }}
+          {{- include "common.envVars" (dict "Env" $env) | indent 8 }}
+          {{- $envVarValuesFrom := $container.envVarValuesFrom }}
+          {{- if $container.useDefaultEnvVarValuesFrom }}
+            {{- $envVarValuesFrom = $defaults.containers.envVarValuesFrom }}
+          {{- end }}
+          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 6 }}
+          {{- if $container.useExternalSecrets }}
+            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 8 }}
+          {{- end }}
+          {{- $envFrom := $container.envFrom }}
+          {{- if $container.useDefaultEnvsFrom }}
+            {{- $envFrom = $defaults.containers.envFrom }}
+          {{- end }}
+          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 6 }}
+          {{- if $container.lifecycle }} 
+          lifecycle:
+{{ toYaml $container.lifecycle | indent 12 }}
+          {{- end }}
+          {{- if $container.livenessProbe }} 
+          livenessProbe:
+{{ toYaml $container.livenessProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.readinessProbe }}
+          readinessProbe:
+{{ toYaml $container.readinessProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.startupProbe }}
+          startupProbe:
+{{ toYaml $container.startupProbe | indent 12 }}
+          {{- end }}
+          {{- if $container.volumeDevices }}
+          volumeDevices:
+{{ toYaml $container.volumeDevices | indent 12 }}
+          {{- end }}
+          {{- $volumeMounts := $container.volumeMounts }}
+          {{- if $container.useDefaultVolumes }}
+            {{- $volumeMounts = $defaults.volumeMounts }}
+          {{- end }}
+          {{- if $volumeMounts }}
+          volumeMounts:
+            {{- range $volume := $volumeMounts }}
+            - name: {{ $volume.name }}
+              mountPath: {{ $volume.mountPath }}
+              {{- if $volume.subPath }}
+              subPath: {{ trimAll "/" $volume.subPath | default "" | quote }}
+              {{- end }}
+              {{- if $volume.readOnly }}
+              readOnly: {{ $volume.readOnly | default false }}
+              {{- end }}              
+            {{- end }}
+          {{- end }}
+          {{- if $container.resources }}
+          resources:
+            {{- with $container.resources.limits }}
+            limits:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if $container.resources.requests }}
+            {{- with $container.resources.requests }}
+            requests:
+              {{- if .cpu }}
+              cpu: {{ .cpu | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.cpu }}
+              cpu: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .memory }}
+              memory: {{ .memory | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.memory }}
+              memory: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              {{- if .ephemeralStorage }}
+              ephemeral-storage: {{ .ephemeralStorage | quote }}
+              {{- else }}
+              {{- if $container.resources.limits }}
+              {{- if $container.resources.limits.ephemeralStorage }}
+              ephemeral-storage: "0"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if $deployments.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ $deployments.imagePullSecrets }}
+      {{- else if $defaults.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ $defaults.imagePullSecrets }}
+      {{- end }}
+      {{- if $deployments.nodeSelector }}
+      nodeSelector:
+{{ toYaml $deployments.nodeSelector | indent 8 }}
+      {{- else if $defaults.nodeSelector }}
+      nodeSelector:
+{{- toYaml $defaults.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if $deployments.nodeName }} 
+      nodeName:
+{{ toYaml $deployments.nodeName | indent 8 }}
+      {{- else if $defaults.nodeName }}.
+      nodeName:
+{{- toYaml $defaults.nodeName | nindent 8 }}      
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - {{ $container.name }}
+              topologyKey: kubernetes.io/zone
+      {{- if $deployments.tolerations }} 
+      tolerations:
+{{ toYaml $deployments.tolerations | indent 8 }}
+      {{- end }}
+      {{- if $deployments.dnsConfig }} 
+      dnsConfig:
+{{ toYaml $deployments.dnsConfig | indent 8 }}
+      {{- else if $defaults.dnsConfig }}
+      dnsConfig:
+{{- toYaml $defaults.dnsConfig | nindent 8 }}
+      {{- end }}
+      {{- if $deployments.hostAliases }} 
+      hostAliases:
+{{ toYaml $deployments.hostAliases | indent 8 }}
+      {{- end }}
+      {{- if $deployments.overhead }} 
+      overhead:
+{{ toYaml $deployments.overhead | indent 8 }}
+      {{- end }}
+      {{- if $deployments.readinessGates }} 
+      readinessGates:
+{{ toYaml $deployments.readinessGates | indent 8 }}
+      {{- end }}
+      {{- if $deployments.securityContext }} 
+      securityContext:
+{{ toYaml $deployments.securityContext | indent 8 }}
+      {{- end }}
+      {{- if $deployments.topologySpreadConstraints }} 
+      topologySpreadConstraints:
+{{ toYaml $deployments.topologySpreadConstraints | indent 8 }}
+      {{- end }}
+      {{- if $deployments.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ $deployments.activeDeadlineSeconds }}
+      {{- end }}
+      {{- if $deployments.automountServiceAccountToken }}
+      automountServiceAccountToken: {{ $deployments.automountServiceAccountToken }}
+      {{- end }}
+      {{- if $deployments.dnsPolicy }}
+      dnsPolicy: {{ $deployments.dnsPolicy }}
+      {{- end }}
+      {{- if $deployments.enableServiceLinks }}
+      enableServiceLinks: {{ $deployments.enableServiceLinks }}
+      {{- end }}
+      {{- if $deployments.hostIPC }}
+      hostIPC: {{ $deployments.hostIPC }}
+      {{- end }}
+      {{- if $deployments.hostNetwork }}
+      hostNetwork: {{ $deployments.hostNetwork }}
+      {{- end }}
+      {{- if $deployments.hostPID }}
+      hostPID: {{ $deployments.hostPID }}
+      {{- end }}
+      {{- if $deployments.hostname }}
+      hostname: {{ $deployments.hostname }}
+      {{- end }}
+      {{- if $deployments.preemptionPolicy }}
+      preemptionPolicy: {{ $deployments.preemptionPolicy }}
+      {{- end }}
+      {{- if $deployments.priority }}
+      priority: {{ $deployments.priority }}
+      {{- end }}
+      {{- if $deployments.priorityClassName }}
+      priorityClassName: {{ $deployments.priorityClassName }}
+      {{- end }}
+      {{- if $deployments.restartPolicy }}
+      restartPolicy: {{ $deployments.restartPolicy }}
+      {{- else if $defaults.restartPolicy }}
+      restartPolicy: {{ $defaults.restartPolicy }}
+      {{- end }}
+      {{- if $deployments.runtimeClassName }}
+      runtimeClassName: {{ $deployments.runtimeClassName }}
+      {{- end }}
+      {{- if $deployments.schedulerName }}
+      schedulerName: {{ $deployments.schedulerName }}
+      {{- end }}
+      {{- if $deployments.serviceAccount }}
+      serviceAccount: {{ $deployments.serviceAccount }}
+      {{- end }}
+      {{- if $deployments.serviceAccountName }}
+      serviceAccountName: {{ $deployments.serviceAccountName }}
+      {{- end }}
+      {{- if $deployments.setHostnameAsFQDN }}
+      setHostnameAsFQDN: {{ $deployments.setHostnameAsFQDN }}
+      {{- end }}
+      {{- if $deployments.shareProcessNamespace }}
+      shareProcessNamespace: {{ $deployments.shareProcessNamespace }}
+      {{- end }}
+      {{- if $deployments.subdomain }}
+      subdomain: {{ $deployments.subdomain }}
+      {{- end }}
+      {{- if $deployments.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $deployments.terminationGracePeriodSeconds }}
+      {{- else if $defaults.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ $defaults.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- $volumeEnabled := $container.volumeMounts }}
+      {{- if $container.useDefaultVolumes }}
+        {{- $volumeEnabled = $defaults.volumeMounts }}
+      {{- end }}
+      {{- if $volumeEnabled }}
+      volumes:
+{{- /*             Containers             */}}
+        {{- range $volumeIndex, $volume := $volumes }}
+        {{- $isVolumeOfThisComponent := false }}
+        {{- range $volumeMountIndex, $volumeMount := $container.volumeMounts }}
+        {{- if eq $volume.name $volumeMount.name }}
+          {{- $isVolumeOfThisComponent = true }}
+        {{- end }}
+        {{- end }}
+        {{- if $isVolumeOfThisComponent }}
+        - name: {{ $volume.storageClassName }}
+          persistentVolumeClaim:
+            claimName: {{ $volume.name }}
+        {{- end }}
+{{- /*            InitContainers            */}}
+        {{- $isVolumeOfThisComponent := false }}
+        {{- range $initContainersIndex, $initContainers := $deployments.initContainers }}
+        {{- range $volumeMountIndex, $volumeMount := $initContainers.volumeMounts }}
+        {{- if eq $volume.name $volumeMount.name }}
+          {{- $isVolumeOfThisComponent = true }}
+        {{- end }}
+        {{- end }}
+        {{- if $isVolumeOfThisComponent }}
+        - name: {{ $volume.storageClassName }}
+          persistentVolumeClaim:
+            claimName: {{ $volume.name }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}

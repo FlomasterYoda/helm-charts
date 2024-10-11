@@ -1,0 +1,159 @@
+{{- $labels := .Values.labels -}}
+{{- $defaults := .Values.cronJobDefaults -}}
+{{- $secrets := .Values.secrets }}
+{{- range $job := .Values.jobs }}
+{{- $customLabels := $job.jobLabels -}}
+{{- $annotations := $job.annotations -}}
+{{- $pod_annotations := $job.pod_annotations -}}
+{{- $image_name := $.Values.image.repository }}
+{{- $image_version := $.Values.image.version }}
+
+{{- $env := $job.env }}
+{{- if $job.useDefaultEnvs }}
+  {{- $env = $defaults.env }}
+{{- end }}
+
+{{- $envFrom := $job.envFrom }}
+{{- if $job.useDefaultEnvsFrom }}
+  {{- $envFrom = $defaults.envFrom }}
+{{- end }}
+
+{{- $envVarValuesFrom := $job.envVarValuesFrom }}
+{{- if $job.useDefaultEnvVarValuesFrom }}
+  {{- $envVarValuesFrom = $defaults.envVarValuesFrom }}
+{{- end }}
+
+{{- $resources := $job.resources | default $defaults.resources}}
+{{- if $job.useDefaultResources }}
+  {{- $resources = $defaults.resources }}
+{{- end }}
+
+{{- $volumes := $job.volumes }}
+{{- if $job.useDefaultVolumes }}
+  {{- $volumes = $defaults.volumes }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $job.name }}
+  labels:
+    {{- include "common.labels" $labels | nindent 4 }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
+    {{- if $annotations }}
+  annotations:
+    {{- include "common.annotations" $annotations | nindent 4 }}
+    {{- end }}
+spec:
+  concurrencyPolicy: {{ $job.concurrencyPolicy  | default $defaults.concurrencyPolicy }}
+  failedJobsHistoryLimit: {{ $job.failedJobsHistoryLimit | default $defaults.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+    {{- if $job.backoffLimit }}
+      backoffLimit: {{ $job.backoffLimit }}
+    {{- end }}
+    {{- if $job.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ $job.activeDeadlineSeconds }}
+    {{- end }}
+      template:
+        metadata:
+          labels:
+            {{- include "common.labels" $labels | nindent  12 }}
+            {{- include "common.labels" $customLabels | nindent 12 }}
+          {{- if $pod_annotations }}
+          annotations:
+            {{- include "common.annotations" $pod_annotations | nindent 12 }}
+          {{- end }}
+          {{- if $job.nodeSelector }}
+          {{- with $job.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- else }}
+          nodeSelector:
+            node-role.kubernetes.io: nodes
+          {{- end }}
+          {{- if $job.imagePullSecrets }}          
+          imagePullSecrets:
+          - name: {{ $job.imagePullSecrets }}
+          {{- else if $defaults.imagePullSecrets }}
+          imagePullSecrets:
+          - name: {{ $defaults.imagePullSecrets }}
+          {{- end }}
+          {{- if $job.dnsConfig }} 
+          dnsConfig:
+          {{- toYaml $job.dnsConfig | nindent 12 }}
+          {{- end }}
+        {{- if $job.serviceAccountName }}
+          serviceAccountName: {{ $job.serviceAccountName }}
+        {{- end }}
+        {{- if hasKey $job "securityContext" }}
+          {{- if $job.securityContext.runAsUser }}
+          securityContext:
+            runAsUser: {{ $job.securityContext.runAsUser }}
+            {{- if $job.securityContext.runAsGroup }}
+            runAsGroup: {{ $job.securityContext.runAsGroup }}
+            {{- end }}
+            {{- if $job.securityContext.fsGroup }}
+            fsGroup: {{ $job.securityContext.fsGroup }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+          containers:
+          {{- if and $job.image $job.image.repository }}
+          - image: {{ $job.image.repository }}:{{ $job.image.version | default $image_version }}
+          {{- else }}
+          - image: "{{ $image_name }}:{{ $image_version }}"
+          {{- end }}
+            imagePullPolicy: {{ $job.image.pullPolicy | default "IfNotPresent" }}
+            env:
+{{- include "common.envVars" (dict "Env" $env) | indent 10 }}
+{{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 8 }}
+{{- if $job.useExternalSecrets }}
+{{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 10 }}
+{{- end }}
+{{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 8 }}
+            name: {{ $job.name }}
+            {{- if $job.command }}
+            command: {{ $job.command }}
+            {{- end }}
+            {{- with $job.args }}
+            args:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with $resources }}
+            resources:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- if $volumes }}
+            volumeMounts:
+              {{- range $volume := $volumes }}
+              - name: {{ $volume.name }}
+                mountPath: {{ $volume.mountPath }}
+              {{- end }}
+            {{- end }}
+          {{- with $job.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $job.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{ if $job.activeDeadlineSeconds }}
+          activeDeadlineSeconds: {{ $job.activeDeadlineSeconds }}
+          {{- end }}
+          restartPolicy: {{ $job.restartPolicy | default $defaults.restartPolicy }}
+          {{- if $volumes }}
+          volumes:
+            {{- range $volume := $volumes }}
+            - name: {{ $volume.name }}
+              persistentVolumeClaim:
+                claimName: {{ $volume.persistentVolumeClaim.claimName }}
+            {{- end }}
+          {{- end }}
+  schedule: {{ $job.schedule | quote }}
+  successfulJobsHistoryLimit: {{ $job.successfulJobsHistoryLimit | default $defaults.successfulJobsHistoryLimit }}
+  suspend: {{ $job.suspend | default $defaults.suspend }} 
+{{- end }}

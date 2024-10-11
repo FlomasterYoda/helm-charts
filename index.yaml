@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  common-chart:
+  - apiVersion: v2
+    created: "2024-10-11T14:16:16.370400897+03:00"
+    description: A general purpose helm chart for deploying components of an application
+    digest: dfdfd212709448682b0dbddc1c93501b138c3e62057c865486a9c210092a70a5
+    home: https://github.com/FlomasterYoda/helm-charts.git
+    name: common-chart
+    type: application
+    urls:
+    - https://flomasteryoda.github.io/helm-charts/packages/common-chart-0.0.1.tgz
+    version: 0.0.1
+generated: "2024-10-11T14:16:16.370002449+03:00"

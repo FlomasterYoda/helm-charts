@@ -1,0 +1,84 @@
+{{- $labels := .Values.labels -}}
+{{- range $servicesIndex, $services := .Values.services }}
+{{- $customLabels := $services.labels -}}
+{{- $annotations := $services.annotations -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $services.name }}
+  labels:
+    {{- include "common.labels" $labels | nindent 4 }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
+  annotations:
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- if $annotations }}    
+    {{- include "common.annotations" $annotations | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if $services.clusterIP }}
+  clusterIP: {{ $services.clusterIP }}
+  {{- end }}
+  {{- if $services.externalIPs }}
+  externalIPs:
+    {{- range $externalIPIndex, $externalIP := $services.externalIPs }}
+    - {{ $externalIP }}
+    {{- end }}
+    {{- end }}
+  {{- if $services.externalName }}
+  externalName: {{ $services.externalName }}
+  {{- end }}
+  {{- if $services.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ $services.externalTrafficPolicy }}
+  {{- end }}
+  {{- if $services.healthCheckNodePort }}
+  healthCheckNodePort: {{ $services.healthCheckNodePort }}
+  {{- end }}
+  {{- if $services.ipFamily }}
+  ipFamily: {{ $services.ipFamily }}
+  {{- end }}
+  {{- if $services.loadBalancerIP }}
+  loadBalancerIP: {{ $services.loadBalancerIP }}
+  {{- end }}
+  {{- if $services.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+{{ toYaml $services.loadBalancerSourceRanges | indent 4 }}
+  {{- end }}
+  {{- if $services.publishNotReadyAddresses }}
+  publishNotReadyAddresses: {{ $services.publishNotReadyAddresses }}
+  {{- end }}
+  {{- if $services.sessionAffinity }}
+  sessionAffinity: {{ $services.sessionAffinity }}
+  {{- end }}
+  {{- if $services.sessionAffinityConfig }}
+  sessionAffinityConfig:
+{{ toYaml $services.sessionAffinityConfig | indent 4 }}
+  {{- end }}
+  {{- if $services.topologyKeys }}
+  topologyKeys:
+{{ toYaml $services.topologyKeys | indent 4 }}
+  {{- end }}
+  ports:
+    {{- range $portMapIndex, $portMap := $services.ports }}
+    {{- if $portMap.name }}
+    - name: {{ $portMap.name }}
+    {{- else }}
+    - name: "port-{{ $portMapIndex }}"
+    {{- end }}
+      port: {{ $portMap.port }}
+      {{- if $portMap.targetPort }}
+      targetPort: {{ $portMap.targetPort }}
+      {{- else }}
+      targetPort: {{ $portMap.port }}
+      {{- end }}
+      {{- if $portMap.nodePort }}
+      nodePort: {{ $portMap.nodePort }}
+      {{- end }}
+      protocol: {{ $portMap.protocol | default "TCP" }}
+    {{- end }}
+  selector:
+    {{- with $services.selector -}}
+    {{ toYaml . | nindent 4 }}
+    {{- end }}
+  type: {{ $services.type | default "ClusterIP" }}
+{{- end }}
