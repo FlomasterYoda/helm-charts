@@ -1,7 +1,7 @@
 {{- $labels := .Values.labels -}}
 {{- range $volumeIndex, $volume := .Values.volumes }}
-{{- $customLabels := $volume.labels -}}
 ---
+{{- $customLabels := $volume.labels -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

@@ -16,10 +16,10 @@ labels:
   owneremail: "devops-email.com"
 
 ####################### secrets #######################
-secrets: {}
+secrets: []
 
 ####################### configmap #######################
-configmaps: {}
+configmaps: []
 
 ####################### services #######################
 services: {}
@@ -53,7 +53,7 @@ cronJobDefaults: {}
   #         fieldPath: status.hostIP
 
 ####################### jobs #######################
-jobs: {}
+jobs: []
 
 ####################### DeploymentDefaults #######################
 deploymentDefaults: {}

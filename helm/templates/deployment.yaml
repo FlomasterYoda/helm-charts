@@ -7,11 +7,11 @@
 {{- $image_pull_policy := .Values.image.imagePullPolicy }}
 
 {{- range $deploymentsIndex, $deployments := .Values.deployments }}
+---
 {{- $customLabels := $deployments.labels -}}
 {{- $annotations := $deployments.annotations -}}
 {{- $pod_annotations := $deployments.pod_annotations -}}
 {{- range $containerIndex, $container := $deployments.containers }}
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:

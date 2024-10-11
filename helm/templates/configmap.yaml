@@ -2,9 +2,9 @@
 {{- $labels := .Values.labels -}}
 {{- $name := .Values.name -}}
 {{- range $configmapsIndex, $configmaps := .Values.configmaps }}
+---
 {{- $customLabels := $configmaps.labels -}}
 {{- $annotations := $configmaps.annotations -}}
----
 kind: ConfigMap
 apiVersion: v1
 metadata:

@@ -2,11 +2,13 @@
 {{- $defaults := .Values.cronJobDefaults -}}
 {{- $secrets := .Values.secrets }}
 {{- range $job := .Values.jobs }}
+---
 {{- $customLabels := $job.jobLabels -}}
 {{- $annotations := $job.annotations -}}
 {{- $pod_annotations := $job.pod_annotations -}}
 {{- $image_name := $.Values.image.repository }}
 {{- $image_version := $.Values.image.version }}
+{{- $image_pull_policy := $.Values.image.imagePullPolicy }}
 
 {{- $env := $job.env }}
 {{- if $job.useDefaultEnvs }}
@@ -32,7 +34,6 @@
 {{- if $job.useDefaultVolumes }}
   {{- $volumes = $defaults.volumes }}
 {{- end }}
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -103,10 +104,15 @@ spec:
           containers:
           {{- if and $job.image $job.image.repository }}
           - image: {{ $job.image.repository }}:{{ $job.image.version | default $image_version }}
+             {{- if $job.image.pullPolicy }}
+            imagePullPolicy: {{ $job.image.pullPolicy }}
+            {{- else }}
+            imagePullPolicy: "IfNotPresent"
+            {{- end }}
           {{- else }}
           - image: "{{ $image_name }}:{{ $image_version }}"
+            imagePullPolicy: {{ $image_pull_policy | default "IfNotPresent" }}
           {{- end }}
-            imagePullPolicy: {{ $job.image.pullPolicy | default "IfNotPresent" }}
             env:
 {{- include "common.envVars" (dict "Env" $env) | indent 10 }}
 {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 8 }}
