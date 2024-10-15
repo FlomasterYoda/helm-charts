@@ -1,14 +1,16 @@
 {{- $labels := .Values.labels -}}
 {{- range $volumeIndex, $volume := .Values.volumes }}
-{{- $customLabels := $volume.labels -}}
 ---
+{{- $customLabels := $volume.labels }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ $volume.name }}
   labels: 
     {{- include "common.labels" $labels | nindent 4 }}
-    {{- include "common.labels" $customLabels | indent 4 }}
+    {{- if $customLabels }}
+    {{- include "common.labels" $customLabels | nindent 4 }}
+    {{- end }}
 spec:
   {{- if $volume.storageClassName }}
   storageClassName: {{ $volume.storageClassName }}

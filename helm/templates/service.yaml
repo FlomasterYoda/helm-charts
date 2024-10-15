@@ -1,8 +1,8 @@
 {{- $labels := .Values.labels -}}
 {{- range $servicesIndex, $services := .Values.services }}
-{{- $customLabels := $services.labels -}}
-{{- $annotations := $services.annotations -}}
 ---
+{{- $customLabels := $services.labels }}
+{{- $annotations := $services.annotations }}
 apiVersion: v1
 kind: Service
 metadata:

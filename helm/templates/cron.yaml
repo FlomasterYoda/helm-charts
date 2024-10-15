@@ -1,12 +1,14 @@
 {{- $labels := .Values.labels -}}
 {{- $defaults := .Values.cronJobDefaults -}}
-{{- $secrets := .Values.secrets }}
+{{- $secrets := .Values.secrets -}}
 {{- range $job := .Values.jobs }}
-{{- $customLabels := $job.jobLabels -}}
-{{- $annotations := $job.annotations -}}
-{{- $pod_annotations := $job.pod_annotations -}}
+---
+{{- $customLabels := $job.jobLabels }}
+{{- $annotations := $job.annotations }}
+{{- $pod_annotations := $job.pod_annotations }}
 {{- $image_name := $.Values.image.repository }}
 {{- $image_version := $.Values.image.version }}
+{{- $image_pull_policy := $.Values.image.imagePullPolicy }}
 
 {{- $env := $job.env }}
 {{- if $job.useDefaultEnvs }}
@@ -32,7 +34,6 @@
 {{- if $job.useDefaultVolumes }}
   {{- $volumes = $defaults.volumes }}
 {{- end }}
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -74,14 +75,14 @@ spec:
           nodeSelector:
             node-role.kubernetes.io: nodes
           {{- end }}
-          {{- if $job.imagePullSecrets }}          
+          {{- if $job.imagePullSecrets }}
           imagePullSecrets:
-          - name: {{ $job.imagePullSecrets }}
+            - name: {{ $job.imagePullSecrets }}
           {{- else if $defaults.imagePullSecrets }}
           imagePullSecrets:
-          - name: {{ $defaults.imagePullSecrets }}
+            - name: {{ $defaults.imagePullSecrets }}
           {{- end }}
-          {{- if $job.dnsConfig }} 
+          {{- if $job.dnsConfig }}
           dnsConfig:
           {{- toYaml $job.dnsConfig | nindent 12 }}
           {{- end }}
@@ -101,47 +102,64 @@ spec:
           {{- end }}
         {{- end }}
           containers:
-          {{- if and $job.image $job.image.repository }}
-          - image: {{ $job.image.repository }}:{{ $job.image.version | default $image_version }}
-          {{- else }}
-          - image: "{{ $image_name }}:{{ $image_version }}"
-          {{- end }}
-            imagePullPolicy: {{ $job.image.pullPolicy | default "IfNotPresent" }}
-            env:
-{{- include "common.envVars" (dict "Env" $env) | indent 10 }}
-{{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 8 }}
-{{- if $job.useExternalSecrets }}
-{{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 10 }}
-{{- end }}
-{{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 8 }}
-            name: {{ $job.name }}
-            {{- if $job.command }}
-            command: {{ $job.command }}
-            {{- end }}
-            {{- with $job.args }}
-            args:
-              {{- toYaml . | nindent 14 }}
-            {{- end }}
-            {{- with $resources }}
-            resources:
-              {{- toYaml . | nindent 14 }}
-            {{- end }}
-            {{- if $volumes }}
-            volumeMounts:
-              {{- range $volume := $volumes }}
-              - name: {{ $volume.name }}
-                mountPath: {{ $volume.mountPath }}
+            - name: {{ $job.name }}
+            {{- if and $job.image $job.image.repository }}
+              image: {{ $job.image.repository }}:{{ $job.image.version | default $image_version }}  # yamllint disable-line rule:line-length
+              {{- if $job.image.pullPolicy }}
+              imagePullPolicy: {{ $job.image.pullPolicy }}
+              {{- else }}
+              imagePullPolicy: "IfNotPresent"
               {{- end }}
+            {{- else }}
+              image: "{{ $image_name }}:{{ $image_version }}"  # yamllint disable-line rule:line-length
+              imagePullPolicy: {{ $image_pull_policy | default "IfNotPresent" }}
             {{- end }}
+              {{- if or $env $envVarValuesFrom $job.useExternalSecrets }}
+              env:
+                {{- if $env }}
+                  {{- include "common.envVars" (dict "Env" $env) | nindent 16 }}
+                {{- end }}
+                {{- if $envVarValuesFrom }}
+                  {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | nindent 16 }}
+                {{- end }}
+                {{- if $job.useExternalSecrets }}
+                  {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              {{- if $envFrom }}
+                {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 14 }}
+              {{- end }}
+              {{- if $job.command }}
+              command: {{ $job.command }}
+              {{- end }}
+              {{- with $job.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with $resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- if $volumes }}
+              volumeMounts:
+                {{- range $volume := $volumes }}
+                - name: {{ $volume.name }}
+                  mountPath: {{ $volume.mountPath }}
+                {{- end }}
+              {{- end }}
+          {{- if $job.affinity }}
           {{- with $job.affinity }}
           affinity:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- end }}
+          {{- if $job.tolerations }}
           {{- with $job.tolerations }}
           tolerations:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{ if $job.activeDeadlineSeconds }}
+          {{- end }}
+          {{- if $job.activeDeadlineSeconds }}
           activeDeadlineSeconds: {{ $job.activeDeadlineSeconds }}
           {{- end }}
           restartPolicy: {{ $job.restartPolicy | default $defaults.restartPolicy }}
@@ -155,5 +173,5 @@ spec:
           {{- end }}
   schedule: {{ $job.schedule | quote }}
   successfulJobsHistoryLimit: {{ $job.successfulJobsHistoryLimit | default $defaults.successfulJobsHistoryLimit }}
-  suspend: {{ $job.suspend | default $defaults.suspend }} 
+  suspend: {{ $job.suspend | default $defaults.suspend }}
 {{- end }}

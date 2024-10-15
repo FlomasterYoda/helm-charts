@@ -1,10 +1,10 @@
-{{- if .Values.configmaps }}
+{{- if .Values.configmaps -}}
 {{- $labels := .Values.labels -}}
 {{- $name := .Values.name -}}
 {{- range $configmapsIndex, $configmaps := .Values.configmaps }}
-{{- $customLabels := $configmaps.labels -}}
-{{- $annotations := $configmaps.annotations -}}
 ---
+{{- $customLabels := $configmaps.labels }}
+{{- $annotations := $configmaps.annotations }}
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -15,11 +15,13 @@ metadata:
 {{- end }}
   labels:
     {{- include "common.labels" $labels | nindent 4 }}
+    {{- if $customLabels }}    
     {{- include "common.labels" $customLabels | nindent 4 }}
-    {{- if $annotations }}
+    {{- end }}
+  {{- if $annotations }}
   annotations:
     {{- include "common.annotations" $annotations | nindent 4 }}
-    {{- end }}    
+    {{- end }}
 data:
   {{- with $configmaps.data -}}
   {{ toYaml . | nindent 2 }}
