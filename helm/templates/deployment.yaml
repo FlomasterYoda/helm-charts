@@ -1,17 +1,16 @@
 {{- $labels := .Values.labels -}}
-{{- $secrets := .Values.secrets }}
-{{- $volumes := .Values.volumes }}
+{{- $secrets := .Values.secrets -}}
+{{- $volumes := .Values.volumes -}}
 {{- $defaults := .Values.deploymentDefaults -}}
-{{- $image_name := .Values.image.repository }}
-{{- $image_version := .Values.image.version }}
-{{- $image_pull_policy := .Values.image.imagePullPolicy }}
-
+{{- $image_name := .Values.image.repository -}}
+{{- $image_version := .Values.image.version -}}
+{{- $image_pull_policy := .Values.image.imagePullPolicy -}}
 {{- range $deploymentsIndex, $deployments := .Values.deployments }}
-{{- $customLabels := $deployments.labels -}}
-{{- $annotations := $deployments.annotations -}}
-{{- $pod_annotations := $deployments.pod_annotations -}}
-{{- range $containerIndex, $container := $deployments.containers }}
 ---
+{{- $customLabels := $deployments.labels }}
+{{- $annotations := $deployments.annotations }}
+{{- $pod_annotations := $deployments.pod_annotations }}
+{{- range $containerIndex, $container := $deployments.containers }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,10 +31,10 @@ spec:
   {{- else if $defaults.revisionHistoryLimit }}
   revisionHistoryLimit: {{ $defaults.revisionHistoryLimit }}
   {{- end }}
-  {{- if $deployments.progressDeadlineSeconds }} 
-  progressDeadlineSeconds: {{ $deployments.progressDeadlineSeconds }} 
+  {{- if $deployments.progressDeadlineSeconds }}
+  progressDeadlineSeconds: {{ $deployments.progressDeadlineSeconds }}
   {{- else if $defaults.progressDeadlineSeconds }}
-  progressDeadlineSeconds: {{ $defaults.progressDeadlineSeconds }} 
+  progressDeadlineSeconds: {{ $defaults.progressDeadlineSeconds }}
   {{- end }}
   strategy:
   {{- if $deployments.strategy }}
@@ -52,8 +51,6 @@ spec:
       maxSurge: {{ $defaults.strategy.rollingUpdate.maxSurge }}
       maxUnavailable: {{ $defaults.strategy.rollingUpdate.maxUnavailable }}
     {{- end }}
-  {{- else }}
-    type: Recreate
   {{- end }}
   
   {{- if $deployments.selector }}
@@ -77,7 +74,7 @@ spec:
         {{- include "common.annotations" $pod_annotations | nindent 8 }}
         {{- end }}
     spec:
-{{- /*            Containers            */}}      
+{{- /*            Containers            */}}
       containers:
         {{- range $containerIndex, $container := $deployments.containers }}
           {{- if $container.name }}
@@ -86,11 +83,11 @@ spec:
         - name: "container-{{ $containerIndex }}"
           {{- end }}
           {{- if and $container.image $container.image.repository }}
-          image: {{ $container.image.repository }}:{{ $container.image.version | default $image_version }}
+          image: {{ $container.image.repository }}:{{ $container.image.version | default $image_version }}  # yamllint disable-line rule:line-length
           {{- else }}
-          image: {{ $image_name }}:{{ $image_version }}
+          image: {{ $image_name }}:{{ $image_version }}  # yamllint disable-line rule:line-length
           {{- end }}
-          {{- if and $container.image $container.image.imagePullPolicy }}          
+          {{- if and $container.image $container.image.imagePullPolicy }}
           imagePullPolicy: {{ $container.image.imagePullPolicy }}
           {{- else }}
           imagePullPolicy: {{ $image_pull_policy }}
@@ -111,57 +108,66 @@ spec:
           {{- if $container.tty }}
           tty: {{ $container.tty }}
           {{- end }}
-          {{- if $container.command }} 
+          {{- if $container.command }}
           command:
             {{- range $commandIndex, $command := $container.command }}
             - {{ $command | quote }}
             {{- end }}
-          {{- end }}  
-          {{- if $container.args }} 
+          {{- end }}
+          {{- if $container.args }}
           args:
             {{- range $argIndex, $arg := $container.args }}
             - {{ $arg | quote }}
             {{- end }}
-          {{- end }}  
+          {{- end }}
           {{- if $container.terminationMessagePath }}
           terminationMessagePath: {{ $container.terminationMessagePath }}
           {{- end }}
           {{- if $container.terminationMessagePolicy }}
           terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
           {{- end }}
-          {{- if $container.securityContext }} 
+          {{- if $container.securityContext }}
           securityContext:
           {{- range $key, $value := $container.securityContext }}
             {{ $key }}: {{ $value }}
           {{- end }}
           {{- end }}
-          env:
+{{- /*            evn            */}}
           {{- $env := $container.env }}
           {{- if $container.useDefaultEnvs }}
             {{- $env = $defaults.containers.env }}
           {{- end }}
-          {{- include "common.envVars" (dict "Env" $env) | indent 8 }}
           {{- $envVarValuesFrom := $container.envVarValuesFrom }}
           {{- if $container.useDefaultEnvVarValuesFrom }}
             {{- $envVarValuesFrom = $defaults.containers.envVarValuesFrom }}
-          {{- end }}
-          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 6 }}
-          {{- if $container.useExternalSecrets }}
-            {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 8 }}
           {{- end }}
           {{- $envFrom := $container.envFrom }}
           {{- if $container.useDefaultEnvsFrom }}
             {{- $envFrom = $defaults.containers.envFrom }}
           {{- end }}
-          {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 6 }}
-          {{- if $container.lifecycle }} 
+          {{- if or $env $envVarValuesFrom $container.useExternalSecrets }}
+          env:
+            {{- if $env }}
+              {{- include "common.envVars" (dict "Env" $env) | nindent 12 }}
+            {{- end }}
+            {{- if $envVarValuesFrom }}
+              {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | nindent 12 }}
+            {{- end }}
+            {{- if $container.useExternalSecrets }}
+              {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if $envFrom }}
+            {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | nindent 10 }}
+          {{- end }}
+          {{- if $container.lifecycle }}
           lifecycle:
 {{ toYaml $container.lifecycle | indent 12 }}
           {{- else if and $defaults.containers $defaults.containers.lifecycle }}
           lifecycle:
 {{- toYaml $defaults.containers.lifecycle | nindent 12 }}
           {{- end }}
-          {{- if $container.livenessProbe }} 
+          {{- if $container.livenessProbe }}
           livenessProbe:
 {{ toYaml $container.livenessProbe | indent 12 }}
           {{- else if and $defaults.containers $defaults.containers.livenessProbe }}
@@ -200,7 +206,7 @@ spec:
               {{- end }}
               {{- if $volume.readOnly }}
               readOnly: {{ $volume.readOnly | default false }}
-              {{- end }}              
+              {{- end }}
             {{- end }}
           {{- end }}
           {{- if $container.resources }}
@@ -306,9 +312,9 @@ spec:
           {{- else }}
           - name: "container-{{ $containerIndex }}"
           {{- end }}
-          image: {{ $container.image.repository }}:{{ $container.image.version }}
+          image: {{ $container.image.repository }}:{{ $container.image.version }}  # yamllint disable-line rule:line-length
           imagePullPolicy: {{ $container.image.imagePullPolicy | default "IfNotPresent" }}
-          {{- if $container.ports }}          
+          {{- if $container.ports }}
           ports:
 {{ toYaml $container.ports | indent 12 }}
           {{- end }}
@@ -324,25 +330,25 @@ spec:
           {{- if $container.tty }}
           tty: {{ $container.tty }}
           {{- end }}
-          {{- if $container.command }} 
+          {{- if $container.command }}
           command:
             {{- range $commandIndex, $command := $container.command }}
             - {{ $command | quote }}
             {{- end }}
-          {{- end }}  
-          {{- if $container.args }} 
+          {{- end }}
+          {{- if $container.args }}
           args:
             {{- range $argIndex, $arg := $container.args }}
             - {{ $arg | quote }}
             {{- end }}
-          {{- end }}  
+          {{- end }}
           {{- if $container.terminationMessagePath }}
           terminationMessagePath: {{ $container.terminationMessagePath }}
           {{- end }}
           {{- if $container.terminationMessagePolicy }}
           terminationMessagePolicy: {{ $container.terminationMessagePolicy }}
           {{- end }}
-          {{- if $container.securityContext }} 
+          {{- if $container.securityContext }}
           securityContext:
           {{- range $key, $value := $container.securityContext }}
             {{ $key }}: {{ $value }}
@@ -358,7 +364,7 @@ spec:
           {{- if $container.useDefaultEnvVarValuesFrom }}
             {{- $envVarValuesFrom = $defaults.containers.envVarValuesFrom }}
           {{- end }}
-          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 6 }}
+          {{- include "common.envVarValuesFrom" (dict "envVarValuesFrom" $envVarValuesFrom) | indent 14 }}
           {{- if $container.useExternalSecrets }}
             {{- include "common.secretEnvVars" (dict "Secrets" $secrets) | indent 8 }}
           {{- end }}
@@ -367,11 +373,11 @@ spec:
             {{- $envFrom = $defaults.containers.envFrom }}
           {{- end }}
           {{- include "common.envVarsFrom" (dict "EnvFrom" $envFrom) | indent 6 }}
-          {{- if $container.lifecycle }} 
+          {{- if $container.lifecycle }}
           lifecycle:
 {{ toYaml $container.lifecycle | indent 12 }}
           {{- end }}
-          {{- if $container.livenessProbe }} 
+          {{- if $container.livenessProbe }}
           livenessProbe:
 {{ toYaml $container.livenessProbe | indent 12 }}
           {{- end }}
@@ -401,7 +407,7 @@ spec:
               {{- end }}
               {{- if $volume.readOnly }}
               readOnly: {{ $volume.readOnly | default false }}
-              {{- end }}              
+              {{- end }}
             {{- end }}
           {{- end }}
           {{- if $container.resources }}
@@ -467,12 +473,12 @@ spec:
       nodeSelector:
 {{- toYaml $defaults.nodeSelector | nindent 8 }}
       {{- end }}
-      {{- if $deployments.nodeName }} 
+      {{- if $deployments.nodeName }}
       nodeName:
 {{ toYaml $deployments.nodeName | indent 8 }}
       {{- else if $defaults.nodeName }}.
       nodeName:
-{{- toYaml $defaults.nodeName | nindent 8 }}      
+{{- toYaml $defaults.nodeName | nindent 8 }}
       {{- end }}
       affinity:
         podAntiAffinity:
@@ -484,34 +490,34 @@ spec:
                     values:
                       - {{ $container.name }}
               topologyKey: kubernetes.io/zone
-      {{- if $deployments.tolerations }} 
+      {{- if $deployments.tolerations }}
       tolerations:
 {{ toYaml $deployments.tolerations | indent 8 }}
       {{- end }}
-      {{- if $deployments.dnsConfig }} 
+      {{- if $deployments.dnsConfig }}
       dnsConfig:
 {{ toYaml $deployments.dnsConfig | indent 8 }}
       {{- else if $defaults.dnsConfig }}
       dnsConfig:
 {{- toYaml $defaults.dnsConfig | nindent 8 }}
       {{- end }}
-      {{- if $deployments.hostAliases }} 
+      {{- if $deployments.hostAliases }}
       hostAliases:
 {{ toYaml $deployments.hostAliases | indent 8 }}
       {{- end }}
-      {{- if $deployments.overhead }} 
+      {{- if $deployments.overhead }}
       overhead:
 {{ toYaml $deployments.overhead | indent 8 }}
       {{- end }}
-      {{- if $deployments.readinessGates }} 
+      {{- if $deployments.readinessGates }}
       readinessGates:
 {{ toYaml $deployments.readinessGates | indent 8 }}
       {{- end }}
-      {{- if $deployments.securityContext }} 
+      {{- if $deployments.securityContext }}
       securityContext:
 {{ toYaml $deployments.securityContext | indent 8 }}
       {{- end }}
-      {{- if $deployments.topologySpreadConstraints }} 
+      {{- if $deployments.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ toYaml $deployments.topologySpreadConstraints | indent 8 }}
       {{- end }}
